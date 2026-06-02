@@ -91,6 +91,7 @@ DEFAULT_SETTINGS = {
     # (30 min) is comfortable for most local setups while still bounding
     # runaway jobs. Tune via Settings or by editing data/settings.json.
     "research_run_timeout_seconds": 1800,
+    "agent_backend": "opencode",  # "opencode" | "hermes" | custom backend name
     "agent_max_tool_calls": 0,
     "agent_input_token_budget": 6000,
     "agent_stream_timeout_seconds": 300,

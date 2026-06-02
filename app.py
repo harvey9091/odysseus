@@ -547,6 +547,12 @@ app.include_router(setup_chat_routes(
     skills_manager=skills_manager,
 ))
 
+# Agent backends (multi-agent switching: OpenCode, Hermes, etc.)
+from src.agent_manager import setup_default_backends
+setup_default_backends()
+from routes.agent_routes import setup_agent_routes
+app.include_router(setup_agent_routes())
+
 # Research (background deep-research tasks)
 from routes.research_routes import setup_research_routes
 app.include_router(setup_research_routes(research_handler, session_manager=session_manager))
@@ -799,6 +805,12 @@ async def startup_event():
     global upload_cleanup_task
     logger.info("Application starting up...")
     webhook_manager.set_loop(asyncio.get_running_loop())
+    # Initialize agent manager (OpenCode + Hermes backends)
+    try:
+        from src.agent_manager import get_agent_manager
+        await get_agent_manager().start()
+    except Exception as e:
+        logger.warning(f"Agent manager startup error (non-fatal): {e}")
     # Wipe any leftover incognito sessions from previous process — they're
     # ephemeral by design and must not survive a restart.
     try:
@@ -1022,6 +1034,12 @@ async def startup_event():
 @app.on_event("shutdown")
 async def shutdown_event():
     logger.info("Application shutting down...")
+    # Stop agent manager
+    try:
+        from src.agent_manager import get_agent_manager
+        await get_agent_manager().stop()
+    except Exception:
+        pass
     if upload_cleanup_task:
         upload_cleanup_task.cancel()
         try:

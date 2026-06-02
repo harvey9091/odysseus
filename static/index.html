@@ -1097,6 +1097,14 @@
           </button>
         </div>
         <div class="chat-input-right">
+          <!-- Agent backend selector (OpenCode, Hermes, etc.) -->
+          <div class="agent-selector-wrap" id="agent-selector-wrap">
+            <button type="button" class="agent-selector-btn" id="agent-selector-btn" title="Switch agent backend">
+              <span id="agent-selector-label">Agent</span>
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+            </button>
+            <div class="agent-selector-menu hidden" id="agent-selector-menu"></div>
+          </div>
           <!-- Agent / Chat mode toggle -->
           <div class="mode-toggle">
             <button type="button" class="mode-toggle-btn active" id="mode-agent-btn">Agent</button>

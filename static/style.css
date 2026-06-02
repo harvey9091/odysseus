@@ -164,11 +164,8 @@ body.bg-pattern-synapse {
     linear-gradient(90deg, color-mix(in srgb, var(--bg-effect-color, var(--fg)) calc(3.5% * var(--bg-effect-intensity, 1)), transparent) 1px, transparent 1px);
   background-size: 24px 24px; background-attachment: fixed;
 }
-body.bg-pattern-perlin-flow,
-body.bg-pattern-petals,
-body.bg-pattern-sparkles {
-  /* canvas-only backgrounds */
-}
+/* canvas-only backgrounds: body.bg-pattern-perlin-flow,
+   body.bg-pattern-petals, body.bg-pattern-sparkles */
 
 
 /* ── Layout ── */
@@ -2521,7 +2518,89 @@ body.bg-pattern-sparkles {
     .mode-toggle-btn + .mode-toggle-btn {
       border-left: none;
     }
-    /* Message count badge in the chat-meta header (next to the title).
+    /* ── Agent Selector (backend switcher: OpenCode, Hermes, etc.) ── */
+    .agent-selector-wrap {
+      position: relative;
+      flex-shrink: 0;
+      margin-right: 6px;
+    }
+    .agent-selector-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      height: 28px;
+      padding: 0 10px;
+      font-size: 11px;
+      font-weight: 500;
+      font-family: inherit;
+      background: color-mix(in srgb, var(--fg) 8%, transparent);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: color-mix(in srgb, var(--fg) 65%, transparent);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background 0.15s, color 0.15s, border-color 0.15s;
+    }
+    .agent-selector-btn:hover {
+      border-color: color-mix(in srgb, var(--fg) 30%, transparent);
+      background: color-mix(in srgb, var(--fg) 12%, transparent);
+      color: var(--fg);
+    }
+    .agent-selector-btn #agent-selector-label {
+      max-width: 100px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .agent-selector-btn svg {
+      flex-shrink: 0;
+      opacity: 0.5;
+    }
+    .agent-selector-menu {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      z-index: 300;
+      min-width: 180px;
+      max-width: 280px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 4px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+    .agent-selector-menu.hidden {
+      display: none;
+    }
+    .agent-selector-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--fg);
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+    .agent-selector-item:hover {
+      background: color-mix(in srgb, var(--fg) 8%, transparent);
+    }
+    .agent-selector-item.active {
+      background: color-mix(in srgb, var(--fg) 10%, transparent);
+    }
+    .agent-item-name {
+      flex: 1;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .agent-item-check {
+      margin-left: 8px;
+      color: var(--fg);
+      opacity: 0.7;
+    }
+    /* Message count badge in the chat_meta header (next to the title).
        Auto-hides when empty so a brand-new chat doesn't show "0 msgs". */
     .chat-meta-count {
       font-size: inherit;
@@ -10353,6 +10432,7 @@ textarea.memory-add-input {
     transparent 100%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+          mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
           mask-composite: exclude;
   animation: memory-synapse-sweep 6.2s linear infinite;
@@ -12653,7 +12733,6 @@ mark.doc-find-mark.current {
 }
 .diff-stat-del { color: var(--warn); }
 .diff-stat-add { color: var(--green); }
-.doc-diff-content { }
 .doc-diff-line {
   padding: 1px 8px;
   border-radius: 4px;
@@ -15746,6 +15825,7 @@ body:not(.email-doc-split-active) #email-lib-modal.email-lib-fullscreen:not(.mod
   font-size: 0.9em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
+          line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   word-break: break-word;
@@ -23474,6 +23554,7 @@ input.settings-select::placeholder { color: color-mix(in srgb, var(--fg) 35%, tr
   text-align: right;
   cursor: text;
   -moz-appearance: textfield;
+       appearance: textfield;
   box-sizing: border-box;
 }
 .ge-transform-popup-input::-webkit-outer-spin-button,
@@ -25697,6 +25778,7 @@ button .spinner-whirlpool {
   font: inherit;
   font-size: 11px;
   -moz-appearance: textfield;
+       appearance: textfield;
 }
 .ge-crop-apply input[type="number"]::-webkit-outer-spin-button,
 .ge-crop-apply input[type="number"]::-webkit-inner-spin-button {
@@ -33084,6 +33166,7 @@ button.cal-view-btn {
     overflow: hidden;
     display: -webkit-box;
     -webkit-line-clamp: 4;
+            line-clamp: 4;
     -webkit-box-orient: vertical;
   }
 }

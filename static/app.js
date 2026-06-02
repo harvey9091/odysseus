@@ -40,6 +40,7 @@ import groupModule from './js/group.js';
 import * as researchPanelModule from './js/research/panel.js';
 import ttsModule from './js/tts-ai.js';
 import spinnerModule from './js/spinner.js';
+import { initAgentSelector } from './js/agentSelector.js';
 import { initKeyboardShortcuts } from './js/keyboard-shortcuts.js';
 import { initSidebarLayout, syncRailSide } from './js/sidebar-layout.js';
 import { initSectionCollapse, initSectionDrag } from './js/section-management.js';
@@ -3364,6 +3365,9 @@ function initializeEventListeners() {
     adminModule, settingsModule, searchChatModule,
     _closeCompareIfActive, _deactivateIncognito, API_BASE
   });
+
+  // Agent backend selector (OpenCode, Hermes, etc.)
+  initAgentSelector();
   
 }
 

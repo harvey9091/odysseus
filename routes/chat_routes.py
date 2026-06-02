@@ -875,14 +875,18 @@ def setup_chat_routes(
                     _active_streams.pop(session, None)
             else:
                 # ── Agent mode: full agent loop with tools ──
+                # Routes through the agent manager to support multiple backends
+                # (OpenCode, Hermes, etc.) with seamless runtime switching.
                 _agent_rounds = 0
                 _agent_tool_calls = 0
                 _answered_by = None  # set if the selected model failed and a fallback answered
                 try:
                     from src.settings import get_setting
+                    from src.agent_manager import get_agent_manager
                     _tool_budget = int(get_setting("agent_max_tool_calls", 0))
+                    _agent_backend = get_agent_manager().get_active_backend()
 
-                    async for chunk in stream_agent_loop(
+                    async for chunk in _agent_backend.stream(
                         sess.endpoint_url,
                         sess.model,
                         messages,
