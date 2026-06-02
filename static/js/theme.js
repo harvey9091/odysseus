@@ -35,10 +35,55 @@ const LS_KEY = 'odysseus-theme';
 const CUSTOM_THEMES_KEY = 'odysseus-custom-themes';
 
 const FONT_MAP = {
+  // ── Built-in system stacks ──
   mono: "'Fira Code', monospace",
   sans: "system-ui, -apple-system, 'Segoe UI', sans-serif",
   serif: "Georgia, 'Times New Roman', serif",
+  // ── Premium defaults (bundled woff2 or Google Fonts) ──
+  inter: "'Inter', system-ui, -apple-system, sans-serif",
+  'plus-jakarta': "'Plus Jakarta Sans', system-ui, sans-serif",
+  'dm-sans': "'DM Sans', system-ui, sans-serif",
+  'ibm-plex': "'IBM Plex Sans', system-ui, sans-serif",
+  'outfit': "'Outfit', system-ui, sans-serif",
+  'instrument-serif': "'Instrument Serif', Georgia, serif",
+  'jetbrains-mono': "'JetBrains Mono', 'Fira Code', monospace",
+  'source-code-pro': "'Source Code Pro', 'Fira Code', monospace",
 };
+// Metadata for the font picker UI: category, label, Google Fonts URL (if applicable).
+// Fonts without a googleUrl are either bundled locally or system-font stacks.
+const FONT_META = {
+  mono:                { label: 'Fira Code',        category: 'Monospace',  preview: 'Fira Code' },
+  sans:                { label: 'System Sans',       category: 'Sans-serif', preview: 'system-ui' },
+  serif:               { label: 'Serif',             category: 'Serif',      preview: 'Georgia' },
+  inter:               { label: 'Inter',             category: 'Sans-serif', preview: 'Inter',
+                         googleUrl: 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap' },
+  'plus-jakarta':      { label: 'Plus Jakarta Sans', category: 'Sans-serif', preview: 'Plus Jakarta Sans',
+                         googleUrl: 'https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap' },
+  'dm-sans':           { label: 'DM Sans',           category: 'Sans-serif', preview: 'DM Sans',
+                         googleUrl: 'https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap' },
+  'ibm-plex':          { label: 'IBM Plex Sans',     category: 'Sans-serif', preview: 'IBM Plex Sans',
+                         googleUrl: 'https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&display=swap' },
+  'outfit':            { label: 'Outfit',            category: 'Sans-serif', preview: 'Outfit',
+                         googleUrl: 'https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&display=swap' },
+  'instrument-serif':  { label: 'Instrument Serif',  category: 'Serif',      preview: 'Instrument Serif',
+                         googleUrl: 'https://fonts.googleapis.com/css2?family=Instrument+Serif&display=swap' },
+  'jetbrains-mono':    { label: 'JetBrains Mono',    category: 'Monospace',  preview: 'JetBrains Mono',
+                         googleUrl: 'https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&display=swap' },
+  'source-code-pro':   { label: 'Source Code Pro',   category: 'Monospace',  preview: 'Source Code Pro',
+                         googleUrl: 'https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;500;600;700&display=swap' },
+};
+// Track loaded Google Fonts stylesheet links to avoid duplicates.
+const _googleFontsLoaded = new Set();
+
+function _loadGoogleFont(url) {
+  if (!url || _googleFontsLoaded.has(url)) return;
+  _googleFontsLoaded.add(url);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = url;
+  link.crossOrigin = 'anonymous';
+  document.head.appendChild(link);
+}
 const DEFAULT_FONT = 'mono';
 const DEFAULT_DENSITY = 'comfortable';
 const MAX_CUSTOM_THEMES = 8;
@@ -373,10 +418,21 @@ export function applyFontDensity(font, density) {
   const f = font || DEFAULT_FONT;
   const d = density || DEFAULT_DENSITY;
   let family = FONT_MAP[f];
+  // Load Google Font stylesheet if this font has one
+  const meta = FONT_META[f];
+  if (meta && meta.googleUrl) _loadGoogleFont(meta.googleUrl);
   if (!family && _customFonts[f]) {
     // It's a custom font from the local folder
     _injectFontFace(f, _customFonts[f]);
     family = "'" + f + "', sans-serif";
+  }
+  // Handle dynamically added Google Fonts (stored with 'gfont:' prefix)
+  if (!family && f.startsWith('gfont:')) {
+    const gName = f.slice(6);
+    const gUrl = 'https://fonts.googleapis.com/css2?family=' +
+      encodeURIComponent(gName) + ':wght@400;500;600;700&display=swap';
+    _loadGoogleFont(gUrl);
+    family = "'" + gName + "', system-ui, sans-serif";
   }
   if (!family) family = FONT_MAP[DEFAULT_FONT];
   document.documentElement.style.setProperty('--font-family', family);
@@ -458,6 +514,7 @@ export function save(name, colors, opts) {
     if (opts.bgEffectIntensity !== undefined && opts.bgEffectIntensity !== 1) obj.bgEffectIntensity = opts.bgEffectIntensity;
     if (opts.bgEffectSize !== undefined && opts.bgEffectSize !== 1) obj.bgEffectSize = opts.bgEffectSize;
     if (opts.frosted) obj.frosted = true;
+    if (opts.googleFonts && opts.googleFonts.length) obj.googleFonts = opts.googleFonts;
   }
   Storage.setJSON(LS_KEY, obj);
   _syncToServer(obj);
@@ -619,6 +676,8 @@ export function initThemeUI() {
   const saved = getSaved();
   const activeName = saved ? saved.name : DEFAULT_THEME;
   const customThemes = _loadCustomThemes();
+  // Mutable list of dynamically added Google Fonts (persisted in theme settings)
+  let _savedGoogleFonts = (saved && saved.googleFonts) || [];
 
   // Render preset swatches
   grid.innerHTML = Object.entries(THEMES).map(([name, c]) => `
@@ -672,9 +731,10 @@ export function initThemeUI() {
     if (sz) opts.bgEffectSize = parseFloat(sz.value) / 100;
     const fr = document.getElementById('theme-frosted-toggle');
     if (fr) opts.frosted = !!fr.checked;
+    if (_savedGoogleFonts && _savedGoogleFonts.length) opts.googleFonts = _savedGoogleFonts;
     return opts;
   }
-  function _saveFull(name, colors) { save(name, colors, _getOpts()); }
+  function _saveFull(name, colors, extra) { const opts = _getOpts(); if (extra) Object.assign(opts, extra); save(name, colors, opts); }
 
   // Click handlers for all swatches (preset + custom) across both grids
   const allGrids = [grid, userGrid].filter(Boolean);
@@ -720,7 +780,7 @@ export function initThemeUI() {
         if (eis) eis.value = String(Math.round(ei * 100));
         if (szs) szs.value = String(Math.round(sz * 100));
         if (frs) frs.checked = fr;
-        save(name, colors, { font: f, density: d, bgPattern: p, bgEffectColor: ec, bgEffectIntensity: ei, bgEffectSize: sz, frosted: fr });
+        save(name, colors, { font: f, density: d, bgPattern: p, bgEffectColor: ec, bgEffectIntensity: ei, bgEffectSize: sz, frosted: fr, googleFonts: _savedGoogleFonts });
       });
     });
     g.querySelectorAll('.theme-delete-btn').forEach(btn => {
@@ -928,6 +988,11 @@ export function initThemeUI() {
       if (fs) fs.value = DEFAULT_FONT;
       if (ds) ds.value = DEFAULT_DENSITY;
       if (ps) ps.value = 'none';
+      // Reset font picker label
+      const fpLabel = document.getElementById('font-picker-label');
+      if (fpLabel) fpLabel.textContent = FONT_META[DEFAULT_FONT]?.label || 'Font';
+      // Clear saved Google Fonts
+      _savedGoogleFonts = [];
       grid.querySelectorAll('.theme-swatch').forEach(s => s.classList.remove('active'));
       const darkSwatch = grid.querySelector('[data-theme="dark"]');
       if (darkSwatch) darkSwatch.classList.add('active');
@@ -1085,6 +1150,12 @@ export function initThemeUI() {
   const _initFrosted = (saved && saved.frosted !== undefined)
     ? !!saved.frosted
     : (saved && THEME_DEFAULT_FROSTED[saved.name] === true);
+  // Pre-load any saved Google Fonts stylesheets so they're ready before the picker opens
+  const _initGoogleFonts = (saved && saved.googleFonts) || [];
+  for (const gf of _initGoogleFonts) {
+    _loadGoogleFont('https://fonts.googleapis.com/css2?family=' +
+      encodeURIComponent(gf) + ':wght@400;500;600;700&display=swap');
+  }
   applyFontDensity(_initFont, _initDensity);
   applyBgEffectColor(_initEffectColor);
   applyBgEffectIntensity(_initEffectIntensity);
@@ -1097,28 +1168,302 @@ export function initThemeUI() {
   const patternSelect = document.getElementById('theme-bg-pattern-select');
 
   if (fontSelect) {
-    const nf = fontSelect.cloneNode(true); fontSelect.parentNode.replaceChild(nf, fontSelect);
-    nf.value = _initFont;
-    nf.addEventListener('change', () => {
-      applyFontDensity(nf.value, document.getElementById('theme-density-select').value);
-      const s = getSaved(); if (s) _saveFull(s.name, s.colors);
+    // ── Build a rich searchable font picker replacing the plain <select> ──
+    const nf = fontSelect;  // keep the original element for ID reference
+    nf.style.display = 'none';  // hide the raw <select>
+
+    // Build the custom picker UI
+    const wrap = document.createElement('div');
+    wrap.className = 'font-picker-wrap';
+    wrap.id = 'font-picker-wrap';
+    wrap.innerHTML = `
+      <button type="button" class="font-picker-btn" id="font-picker-btn">
+        <span id="font-picker-label" class="font-picker-label">Font</span>
+        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 15 12 9 18 15"/></svg>
+      </button>
+      <div class="font-picker-dropdown hidden" id="font-picker-dropdown">
+        <div class="font-picker-search-row">
+          <input type="text" class="font-picker-search" id="font-picker-search" placeholder="Search fonts…" autocomplete="off">
+          <button type="button" class="font-picker-action-btn" id="font-picker-upload-btn" title="Upload local font file (.ttf, .otf, .woff, .woff2)">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          </button>
+          <button type="button" class="font-picker-action-btn" id="font-picker-gfont-btn" title="Add Google Font">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+          </button>
+        </div>
+        <div class="font-picker-list" id="font-picker-list"></div>
+      </div>
+    `;
+    nf.parentNode.insertBefore(wrap, nf.nextSibling);
+
+    function _buildFontList(filter) {
+      const list = document.getElementById('font-picker-list');
+      if (!list) return;
+      list.innerHTML = '';
+      const q = (filter || '').toLowerCase();
+      const currentVal = nf.value;
+
+      // Collect all fonts: built-in + premium + custom + saved Google Fonts
+      const allFonts = [];
+
+      // Built-in / premium defaults
+      for (const key of Object.keys(FONT_MAP)) {
+        const meta = FONT_META[key] || {};
+        allFonts.push({
+          value: key,
+          label: meta.label || key,
+          category: meta.category || 'Other',
+          preview: meta.preview || meta.label || key,
+          source: 'built-in',
+        });
+      }
+
+      // Custom fonts from local folder
+      for (const fam of Object.keys(_customFonts)) {
+        allFonts.push({
+          value: fam,
+          label: fam,
+          category: 'Custom',
+          preview: fam,
+          source: 'custom',
+        });
+      }
+
+      // Saved Google Fonts
+      for (const gf of _savedGoogleFonts) {
+        const key = 'gfont:' + gf;
+        if (!FONT_MAP[key]) {
+          allFonts.push({
+            value: key,
+            label: gf,
+            category: 'Google Fonts',
+            preview: gf,
+            source: 'google',
+          });
+        }
+      }
+
+      // Filter
+      const filtered = q
+        ? allFonts.filter(f => f.label.toLowerCase().includes(q) || f.category.toLowerCase().includes(q))
+        : allFonts;
+
+      // Group by category
+      const groups = {};
+      for (const f of filtered) {
+        if (!groups[f.category]) groups[f.category] = [];
+        groups[f.category].push(f);
+      }
+
+      for (const [cat, fonts] of Object.entries(groups)) {
+        const header = document.createElement('div');
+        header.className = 'font-picker-category';
+        header.textContent = cat;
+        list.appendChild(header);
+        for (const f of fonts) {
+          const item = document.createElement('div');
+          item.className = 'font-picker-item' + (f.value === currentVal ? ' active' : '');
+          item.dataset.fontValue = f.value;
+          item.innerHTML = `
+            <span class="font-picker-item-name" style="font-family: '${f.preview}', var(--font-family, sans-serif)">${_escHtml(f.label)}</span>
+            ${f.value === currentVal ? '<span class="font-picker-item-check">✓</span>' : ''}
+            ${f.source === 'custom' ? '<button type="button" class="font-picker-del-btn" data-del-font="' + _escHtml(f.value) + '" title="Delete font">×</button>' : ''}
+          `;
+          item.addEventListener('click', (e) => {
+            if (e.target.closest('.font-picker-del-btn')) return;
+            _selectFont(f.value);
+          });
+          list.appendChild(item);
+        }
+      }
+
+      if (!filtered.length) {
+        const empty = document.createElement('div');
+        empty.className = 'font-picker-empty';
+        empty.textContent = 'No fonts match "' + filter + '"';
+        list.appendChild(empty);
+      }
+    }
+
+    function _escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s;
+      return d.innerHTML;
+    }
+
+    function _selectFont(value) {
+      nf.value = value;
+      applyFontDensity(value, document.getElementById('theme-density-select').value);
+      const s = getSaved();
+      if (s) _saveFull(s.name, s.colors, { googleFonts: _savedGoogleFonts });
+      _updateLabel(value);
+      _buildFontList(document.getElementById('font-picker-search').value);
+      _closeDropdown();
+    }
+
+    function _updateLabel(value) {
+      const label = document.getElementById('font-picker-label');
+      if (!label) return;
+      const meta = FONT_META[value];
+      if (meta) {
+        label.textContent = meta.label;
+      } else if (value.startsWith('gfont:')) {
+        label.textContent = value.slice(6);
+      } else {
+        label.textContent = value;
+      }
+    }
+
+    function _closeDropdown() {
+      const dd = document.getElementById('font-picker-dropdown');
+      if (dd) dd.classList.add('hidden');
+    }
+
+    // Toggle dropdown
+    const pickerBtn = document.getElementById('font-picker-btn');
+    if (pickerBtn) {
+      pickerBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const dd = document.getElementById('font-picker-dropdown');
+        if (!dd) return;
+        const isOpen = !dd.classList.contains('hidden');
+        dd.classList.toggle('hidden', isOpen);
+        if (!isOpen) {
+          _buildFontList('');
+          const searchInput = document.getElementById('font-picker-search');
+          if (searchInput) setTimeout(() => searchInput.focus(), 50);
+        }
+      });
+    }
+
+    // Close on outside click
+    document.addEventListener('click', (e) => {
+      if (!wrap.contains(e.target)) _closeDropdown();
     });
-    // Fetch custom fonts from local folder and populate dropdown
+
+    // Search input
+    const searchInput = document.getElementById('font-picker-search');
+    if (searchInput) {
+      searchInput.addEventListener('input', () => {
+        _buildFontList(searchInput.value);
+      });
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') _closeDropdown();
+      });
+    }
+
+    // Upload button
+    const uploadBtn = document.getElementById('font-picker-upload-btn');
+    if (uploadBtn) {
+      uploadBtn.addEventListener('click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.ttf,.otf,.woff,.woff2';
+        input.multiple = true;
+        input.addEventListener('change', async () => {
+          for (const file of input.files) {
+            const fd = new FormData();
+            fd.append('file', file);
+            try {
+              const res = await fetch('/api/fonts/custom/upload', { method: 'POST', body: fd });
+              if (!res.ok) {
+                const err = await res.json().catch(() => ({}));
+                console.warn('Font upload failed:', err.detail || res.statusText);
+                continue;
+              }
+              const data = await res.json();
+              // Refresh custom fonts list
+              const listRes = await fetch('/api/fonts/custom');
+              const listData = await listRes.json();
+              _customFonts = listData.fonts || {};
+              _buildFontList(document.getElementById('font-picker-search').value);
+              // Auto-select the uploaded font
+              if (data.family) _selectFont(data.family);
+            } catch (e) {
+              console.warn('Font upload error:', e);
+            }
+          }
+        });
+        input.click();
+      });
+    }
+
+    // Google Font add button
+    const gfontBtn = document.getElementById('font-picker-gfont-btn');
+    if (gfontBtn) {
+      gfontBtn.addEventListener('click', () => {
+        const name = prompt('Enter Google Font family name (e.g., "Roboto", "Playfair Display"):');
+        if (!name || !name.trim()) return;
+        const family = name.trim();
+        // Validate via backend
+        fetch('/api/fonts/google/validate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ family }),
+        }).then(r => r.json()).then(data => {
+          if (data.valid) {
+            if (!_savedGoogleFonts.includes(family)) {
+              _savedGoogleFonts.push(family);
+            }
+            // Load the Google Font stylesheet immediately
+            _loadGoogleFont(data.url);
+            _buildFontList(document.getElementById('font-picker-search').value);
+            _selectFont('gfont:' + family);
+          } else {
+            alert('Font not found on Google Fonts: "' + family + '". Check the spelling and try again.');
+          }
+        }).catch(e => {
+          console.warn('Google Font validation failed:', e);
+          // Fallback: add anyway and let it try to load
+          if (!_savedGoogleFonts.includes(family)) {
+            _savedGoogleFonts.push(family);
+          }
+          _buildFontList(document.getElementById('font-picker-search').value);
+          _selectFont('gfont:' + family);
+        });
+      });
+    }
+
+    // Delegate delete button clicks in the font list
+    document.getElementById('font-picker-list').addEventListener('click', async (e) => {
+      const delBtn = e.target.closest('.font-picker-del-btn');
+      if (!delBtn) return;
+      e.stopPropagation();
+      const fontKey = delBtn.dataset.delFont;
+      if (!fontKey) return;
+      if (!confirm('Delete custom font "' + fontKey + '"?')) return;
+      // Delete all files for this family
+      const variants = _customFonts[fontKey] || [];
+      for (const v of variants) {
+        try {
+          await fetch('/api/fonts/custom/' + encodeURIComponent(v.file), { method: 'DELETE' });
+        } catch (_) {}
+      }
+      // Refresh
+      try {
+        const listRes = await fetch('/api/fonts/custom');
+        const listData = await listRes.json();
+        _customFonts = listData.fonts || {};
+      } catch (_) {}
+      // If the deleted font was selected, fall back to default
+      if (nf.value === fontKey) {
+        _selectFont(DEFAULT_FONT);
+      } else {
+        _buildFontList(document.getElementById('font-picker-search').value);
+      }
+    });
+
+    // Restore saved font label
+    _updateLabel(_initFont);
+
+    // Fetch custom fonts and populate
     fetch('/api/fonts/custom', { credentials: 'same-origin' })
       .then(r => r.json())
       .then(data => {
         _customFonts = data.fonts || {};
-        const families = Object.keys(_customFonts);
-        nf.querySelectorAll('option[data-custom-font]').forEach(o => o.remove());
-        for (const fam of families) {
-          const opt = document.createElement('option');
-          opt.value = fam;
-          opt.textContent = fam;
-          opt.dataset.customFont = '1';
-          nf.appendChild(opt);
-        }
-        // Restore saved value after options are populated
-        nf.value = _initFont;
+        _buildFontList('');
+        // Restore saved value
+        _updateLabel(_initFont);
       })
       .catch(e => console.warn('Custom fonts fetch failed:', e));
   }
