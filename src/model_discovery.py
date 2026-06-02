@@ -70,9 +70,10 @@ def discover_tailscale_hosts() -> List[str]:
 
 
 class ModelDiscovery:
-    def __init__(self, default_host: str, openai_api_key: Optional[str] = None):
+    def __init__(self, default_host: str, openai_api_key: Optional[str] = None, xai_api_key: Optional[str] = None):
         self.default_host = default_host
         self.openai_api_key = openai_api_key
+        self.xai_api_key = xai_api_key
         self.openai_compat_path = "/v1/chat/completions"
 
     def _get_hosts(self) -> List[str]:
@@ -184,6 +185,18 @@ class ModelDiscovery:
                 "items": [{
                     "url": "https://api.openai.com/v1/chat/completions",
                     "models": openai_models
+                }]
+            })
+
+        if self.xai_api_key:
+            xai_models = [
+                "grok-4.3", "grok-4", "grok-4-fast", "grok-3", "grok-3-fast",
+            ]
+            providers.append({
+                "provider": "xai",
+                "items": [{
+                    "url": "https://api.x.ai/v1/chat/completions",
+                    "models": xai_models
                 }]
             })
 
