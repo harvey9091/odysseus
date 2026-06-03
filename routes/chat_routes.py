@@ -841,6 +841,15 @@ def setup_chat_routes(
                                     "usage_source": "estimated",
                                 }
                                 yield f'data: {json.dumps({"type": "metrics", "data": last_metrics})}\n\n'
+                            # Safety net: if the model returned zero text
+                            # (e.g. FreeLLMAPI or a proxy silently dropped
+                            # the response), emit a visible message instead
+                            # of leaving the user with a blank bubble.
+                            if not full_response.strip():
+                                _empty_msg = f"{sess.model} returned an empty response. The model may not support the current request format — try a different model or endpoint."
+                                logger.warning("Empty response from %s on %s — emitting fallback message", sess.model, sess.endpoint_url)
+                                yield f'data: {json.dumps({"delta": _empty_msg})}\n\n'
+                                full_response = _empty_msg
                             if full_response:
                                 _saved_id = save_assistant_response(
                                     sess, session_manager, session, full_response, last_metrics,

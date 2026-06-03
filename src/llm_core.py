@@ -918,7 +918,13 @@ async def stream_llm(url: str, model: str, messages: List[Dict], temperature: fl
             "temperature": temperature,
             "stream": True,
         }
-        if provider not in {"openrouter", "groq"}:
+        # FreeLLMAPI proxies various models behind an OpenAI-compatible layer
+        # but doesn't consistently forward stream_options to every backend —
+        # some models silently drop the entire response when they see the
+        # extra field (works in the FreeLLMAPI playground which never sends
+        # it, but empty response from Odysseus). Exclude freellmapi so the
+        # usage stats fall back to client-side estimation.
+        if provider not in {"openrouter", "groq", "freellmapi"}:
             payload["stream_options"] = {"include_usage": True}
         if max_tokens and max_tokens > 0:
             tok_key = "max_completion_tokens" if _uses_max_completion_tokens(model) else "max_tokens"
