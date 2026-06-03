@@ -170,7 +170,7 @@ def _is_ollama_native_url(url: str) -> bool:
 
 
 def _is_freellmapi_url(url: str) -> bool:
-    """Return True for FreeLLMAPI endpoints (default host.docker.internal:3001 or freellmapi.com)."""
+    """Return True for FreeLLMAPI endpoints (default host.docker.internal:3002 or freellmapi.com)."""
     if not url:
         return False
     try:
@@ -181,8 +181,8 @@ def _is_freellmapi_url(url: str) -> bool:
     port = parsed.port
     if _host_match(url, "freellmapi.com"):
         return True
-    # Default FreeLLMAPI runs on port 3001 (host.docker.internal for Docker, localhost for bare-metal)
-    if host in {"localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.internal"} and port == 3001:
+    # Default FreeLLMAPI runs on port 3002 (host.docker.internal for Docker, localhost for bare-metal)
+    if host in {"localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.internal"} and port == 3002:
         return True
     return False
 
