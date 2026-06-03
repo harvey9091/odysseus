@@ -304,6 +304,7 @@ function _isLocalEndpoint(url) {
     const u = new URL(url);
     const h = u.hostname.toLowerCase();
     if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0') return true;
+    if (h === 'host.docker.internal') return true;
     if (h.endsWith('.local')) return true;
     if (/^10\./.test(h)) return true;
     if (/^192\.168\./.test(h)) return true;
@@ -638,9 +639,9 @@ function initEndpointForm() {
   const provider = el('adm-epProvider');
   const urlInput = el('adm-epUrl');
 
-  // Local endpoints (FreeLLMAPI on localhost, etc.) don't need an API key
+  // Local endpoints (FreeLLMAPI on host.docker.internal, etc.) don't need an API key
   function _isLocalProviderUrl(url) {
-    return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|::1)(:\d+)?/i.test(url || '');
+    return /^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0|::1|host\.docker\.internal)(:\d+)?/i.test(url || '');
   }
 
   // Custom provider picker — mirrors the (now hidden) <select id="adm-epProvider">
