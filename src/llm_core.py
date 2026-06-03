@@ -169,6 +169,24 @@ def _is_ollama_native_url(url: str) -> bool:
     return local_ollama_host and (path == "/api" or path.startswith("/api/"))
 
 
+def _is_freellmapi_url(url: str) -> bool:
+    """Return True for FreeLLMAPI endpoints (default localhost:3001 or freellmapi.com)."""
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        return False
+    host = (parsed.hostname or "").lower()
+    port = parsed.port
+    if _host_match(url, "freellmapi.com"):
+        return True
+    # Default FreeLLMAPI runs on port 3001
+    if host in {"localhost", "127.0.0.1", "0.0.0.0", "::1"} and port == 3001:
+        return True
+    return False
+
+
 def _ollama_api_root(url: str) -> str:
     """Return a native Ollama API root such as https://ollama.com/api."""
     url = (url or "").strip().rstrip("/")
@@ -299,6 +317,8 @@ def _detect_provider(url: str) -> str:
         return "openrouter"
     if _host_match(url, "groq.com"):
         return "groq"
+    if _is_freellmapi_url(url):
+        return "freellmapi"
     return "openai"
 
 
@@ -328,6 +348,7 @@ def _provider_label(url: str) -> str:
     if _host_match(url, "together.xyz", "together.ai"): return "Together"
     if _host_match(url, "fireworks.ai"): return "Fireworks"
     if _is_ollama_native_url(url): return "Ollama"
+    if _is_freellmapi_url(url): return "FreeLLMAPI"
     try:
         host = (urlparse(url).hostname or "").lower()
     except Exception:

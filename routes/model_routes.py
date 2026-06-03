@@ -97,6 +97,7 @@ _HOST_TO_CURATED = (
     ("x.ai", "xai"),
     ("openrouter.ai", "openrouter"),
     ("ollama.com", "ollama"),
+    ("freellmapi.com", "freellmapi"),
 )
 
 

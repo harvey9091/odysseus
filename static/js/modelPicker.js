@@ -220,6 +220,7 @@ function _initModelPickerDropdown() {
     'bytedance-seed': 'ByteDance', 'cognitivecomputations': 'Cognitive Computations',
     'cohere': 'Cohere', 'databricks': 'Databricks', 'deepcogito': 'DeepCogito',
     'deepseek': 'DeepSeek', 'deepseek-ai': 'DeepSeek', 'essentialai': 'Essential AI',
+    'freellmapi': 'FreeLLMAPI',
     'google': 'Google', 'gryphe': 'Gryphe', 'ibm': 'IBM',
     'ibm-granite': 'IBM Granite', 'inception': 'Inception',
     'inclusionai': 'Inclusion AI', 'inflection': 'Inflection',
