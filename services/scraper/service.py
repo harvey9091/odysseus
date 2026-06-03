@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from typing import Dict, Optional
 
-from .pipeline import ScraperPipeline
+from .pipeline_new import NewScraperPipeline
 from .providers import PROVIDER_REGISTRY, get_provider, get_all_providers
 from .storage import LeadStore
 from .analyzers import LeadScorer
@@ -68,7 +68,7 @@ class ScraperService:
                 entry["progress_events"] = entry["progress_events"][-500:]
 
         # Create and start pipeline
-        pipeline = ScraperPipeline(run_id, owner, on_progress)
+        pipeline = NewScraperPipeline(run_id, owner, on_progress)
         entry["pipeline"] = pipeline
 
         # Configure LLM if available
@@ -273,3 +273,7 @@ class ScraperService:
             writer.writerow(row)
 
         return output.getvalue()
+
+
+# Backward compatibility alias
+ScraperPipeline = NewScraperPipeline

@@ -4,6 +4,11 @@
 # Note: chromadb-client + fastembed moved to requirements.txt — RAG, semantic
 # memory, and tool selection are core paths, so they ship by default now.
 
+# Browser Use — optional browser automation for JS-heavy scraping.
+# Falls back to aiohttp + BeautifulSoup when absent; install for dynamic
+# sites like ProductHunt, BetaList, DevHunt, etc.
+browser-use
+
 # Local speech-to-text (microphone -> text) via faster-whisper, for the
 # "local" STT provider. Runs on CPU out of the box (CTranslate2 backend, no
 # torch needed). Install if you want to dictate/transcribe with the mic

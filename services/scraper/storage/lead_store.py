@@ -232,6 +232,17 @@ class LeadStore:
             }
 
     @staticmethod
+    def get_all_active_domains() -> list:
+        """Get all active (non-excluded) domains for cross-run dedup."""
+        with get_db_session() as db:
+            rows = db.query(ScraperLead.domain).filter(
+                ScraperLead.excluded == False,
+                ScraperLead.domain.isnot(None),
+                ScraperLead.domain != "",
+            ).all()
+            return [row[0] for row in rows if row[0]]
+
+    @staticmethod
     def _lead_to_dict(lead: ScraperLead) -> dict:
         """Convert a lead to dict."""
         return {
