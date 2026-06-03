@@ -557,6 +557,12 @@ app.include_router(setup_agent_routes())
 from routes.research_routes import setup_research_routes
 app.include_router(setup_research_routes(research_handler, session_manager=session_manager))
 
+# Scraper (autonomous lead intelligence)
+from routes.scraper_routes import setup_scraper_routes
+from services.scraper.service import ScraperService
+scraper_service = ScraperService()
+app.include_router(setup_scraper_routes(scraper_service))
+
 # History
 from routes.history_routes import setup_history_routes
 app.include_router(setup_history_routes(session_manager))
