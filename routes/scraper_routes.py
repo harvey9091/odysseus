@@ -199,7 +199,21 @@ def setup_scraper_routes(scraper_service) -> APIRouter:
             }
         )
 
-    return router
+    # ─────────────────────────────────────────────────────────────────────
+    # Health Monitoring
+    # ─────────────────────────────────────────────────────────────────────
+
+    @router.get("/api/scraper/health")
+    async def scraper_health(request: Request):
+        """Get scraper health status and resource utilization."""
+        health = scraper_service.health_check()
+        return health
+
+    @router.get("/api/scraper/resources")
+    async def scraper_resources(request: Request):
+        """Get current resource status (workers, browsers, queue)."""
+        status = scraper_service.get_resource_status()
+        return status
 
 
 def _get_user(request: Request) -> str:

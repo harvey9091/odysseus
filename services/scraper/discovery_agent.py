@@ -9,6 +9,11 @@ Accepts any source URL and autonomously discovers startup leads through:
 5. Founder Discovery - identifies key people
 6. Deduplication - prevents duplicate leads
 7. Storage - persists to database
+
+Resource protection:
+- Browser instances limited to 3 concurrent
+- Rate limiting: 2 requests/second max
+- Respects resource manager backpressure
 """
 
 import asyncio
@@ -80,6 +85,14 @@ class DiscoveryAgent:
         self.timeout = timeout
         self._browser = None
         self._context = None
+        self._resources = None
+
+    async def _get_resources(self):
+        """Lazy-load resource manager."""
+        if self._resources is None:
+            from .resource_manager import get_resource_manager
+            self._resources = get_resource_manager()
+        return self._resources
 
     async def discover(self, source_url: str, progress_callback=None) -> list[ExtractedLead]:
         """Main entry point - discovers leads from any source URL."""
@@ -200,7 +213,13 @@ class DiscoveryAgent:
                     lead.emails.append(email)
 
     async def _fetch_page(self, url: str) -> str:
-        """Fetch page content using aiohttp with fallback to browser."""
+        """Fetch page content using aiohttp with fallback to browser.
+        
+        Enforces rate limiting before each HTTP request.
+        """
+        resources = await self._get_resources()
+        await resources.rate_limit()
+
         try:
             timeout = aiohttp.ClientTimeout(total=self.timeout)
             async with aiohttp.ClientSession(timeout=timeout) as session:
@@ -219,20 +238,37 @@ class DiscoveryAgent:
         return ""
 
     async def _fetch_with_browser(self, url: str) -> str:
-        """Fetch with Playwright browser for JS rendering."""
+        """Fetch with Playwright browser for JS rendering.
+        
+        Respects browser instance limits and implements backoff on constrained resources.
+        """
+        resources = await self._get_resources()
+
+        # Check if we can get a browser slot
+        if not await resources.acquire_browser():
+            # Implement exponential backoff when browser slots unavailable
+            backoff = min(2 ** (resources._browser_instances // 2), 16)
+            logger.info(f"Browser slot unavailable, backing off for {backoff}s")
+            await asyncio.sleep(backoff)
+            if not await resources.acquire_browser():
+                return ""
+
         try:
             from playwright.async_api import async_playwright
             playwright = await async_playwright().start()
             browser = await playwright.chromium.launch(
                 headless=self.headless,
-                args=["--disable-blink-features=AutomationControlled", "--no-sandbox"]
+                args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--memory-pressure-off"]
             )
-            context = await browser.new_context()
+            context = await browser.new_context(
+                java_script_enabled=True,
+                viewport={"width": 1280, "height": 720}
+            )
             page = await context.new_page()
 
             try:
                 await page.goto(url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.5)
                 return await page.content()
             finally:
                 await page.close()
@@ -241,6 +277,11 @@ class DiscoveryAgent:
         except ImportError:
             logger.warning("Playwright not available, skipping browser fallback")
             return ""
+        except Exception as e:
+            logger.error(f"Browser fetch error: {e}")
+            return ""
+        finally:
+            resources.release_browser()
 
     def _extract_company_links(self, html: str, base_url: str) -> list[str]:
         """Extract links to individual company pages."""

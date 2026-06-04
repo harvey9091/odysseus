@@ -9,6 +9,7 @@ from typing import Dict, Optional
 from urllib.parse import urlparse
 
 from .discovery_agent import DiscoveryAgent
+from .resource_manager import get_resource_manager, ResourceManager
 from .storage import LeadStore
 
 logger = logging.getLogger(__name__)
@@ -21,23 +22,39 @@ class ScraperService:
         self._active_runs: Dict[str, dict] = {}
         self._agent = DiscoveryAgent(headless=True, timeout=30)
         self.store = LeadStore()
+        self._resources: ResourceManager = get_resource_manager()
+        self._is_processing_queue = False
 
     # ─────────────────────────────────────────────────────────────────────
     # Run Management
     # ─────────────────────────────────────────────────────────────────────
 
     def start_run(self, source_url: str, owner: str) -> dict:
-        """Start a new discovery run. Returns run info dict."""
+        """Start a new discovery run. Returns run info dict.
+
+        If system is overloaded or max workers reached, job is queued instead.
+        """
         run_id = str(uuid.uuid4())
 
-        # Validate URL
         if not source_url or not self._is_valid_url(source_url):
             return {"error": "Invalid source URL provided", "run_id": None}
 
-        # Create run in DB
         self.store.create_run(run_id, ["discovery_agent"], {"source_url": source_url}, owner)
 
-        # Track in memory
+        status = self._resources.get_status()
+        can_accept = status["active_workers"] < status["max_workers"] and status["load_state"] != "critical"
+
+        if not can_accept:
+            self.store.update_run_status(run_id, "queued")
+            self._resources.queue_job(run_id, source_url, owner)
+            logger.info(f"Queued job {run_id} - system overloaded or max workers reached")
+            self._process_queue()
+            return {"run_id": run_id, "status": "queued", "source_url": source_url}
+
+        return self._start_run_internal(run_id, source_url, owner)
+
+    def _start_run_internal(self, run_id: str, source_url: str, owner: str) -> dict:
+        """Internal method to start a run immediately."""
         entry = {
             "run_id": run_id,
             "status": "running",
@@ -49,7 +66,6 @@ class ScraperService:
         }
         self._active_runs[run_id] = entry
 
-        # Progress callback
         def on_progress(event: dict):
             entry["progress_events"].append({
                 **event,
@@ -58,9 +74,15 @@ class ScraperService:
             if len(entry["progress_events"]) > 500:
                 entry["progress_events"] = entry["progress_events"][-500:]
 
-        # Run in background
         async def _run():
+            acquired = False
             try:
+                acquired = await self._resources.acquire_worker()
+                if not acquired:
+                    entry["status"] = "failed"
+                    self.store.update_run_status(run_id, "failed", error="Resource limit exceeded")
+                    return
+
                 self.store.update_run_status(run_id, "running")
                 await self._execute_discovery(run_id, source_url, on_progress)
                 entry["status"] = "completed"
@@ -71,6 +93,9 @@ class ScraperService:
                 entry["status"] = "failed"
                 entry["error"] = str(e)
                 self.store.update_run_status(run_id, "failed", error=str(e))
+            finally:
+                if acquired:
+                    self._resources.release_worker()
 
         task = asyncio.create_task(_run())
         entry["task"] = task
@@ -122,6 +147,44 @@ class ScraperService:
             for run_id, entry in self._active_runs.items()
             if entry["status"] == "running" and (owner is None or entry.get("owner") == owner)
         ]
+
+    def _process_queue(self):
+        """Start background processing of queued jobs."""
+        if self._is_processing_queue:
+            return
+        self._is_processing_queue = True
+
+        async def _queue_processor():
+            try:
+                while True:
+                    if self._resources.queue_size() == 0:
+                        await asyncio.sleep(2)
+                        continue
+
+                    status = self._resources.get_status()
+                    can_accept = status["active_workers"] < status["max_workers"] and status["load_state"] != "critical"
+                    if can_accept:
+                        job = self._resources.get_queued_job()
+                        if job:
+                            self._start_run_internal(job.run_id, job.source_url, job.owner)
+                    else:
+                        await asyncio.sleep(5)
+
+                    await asyncio.sleep(0.5)
+            except asyncio.CancelledError:
+                pass
+            finally:
+                self._is_processing_queue = False
+
+        asyncio.create_task(_queue_processor())
+
+    def get_resource_status(self) -> dict:
+        """Get current resource utilization status for health monitoring."""
+        return self._resources.get_status()
+
+    def health_check(self) -> dict:
+        """Comprehensive health check with resource metrics."""
+        return self._resources.health_check()
 
     async def _execute_discovery(self, run_id: str, source_url: str, progress_callback):
         """Execute the discovery pipeline."""
