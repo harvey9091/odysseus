@@ -13,8 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class ScraperStartRequest(BaseModel):
-    providers: list[str] = Field(default_factory=lambda: ["hackernews"])
-    filters: dict = Field(default_factory=dict)
+    source_url: str = Field(..., description="Directory URL or startup listing page to scrape")
 
 
 class ScraperLeadUpdate(BaseModel):
@@ -32,13 +31,9 @@ def setup_scraper_routes(scraper_service) -> APIRouter:
 
     @router.post("/api/scraper/start")
     async def start_scrape(request: Request, body: ScraperStartRequest):
-        """Start a new scraping run."""
+        """Start a new discovery scrape."""
         user = _get_user(request)
-        result = scraper_service.start_run(
-            providers=body.providers,
-            filters=body.filters,
-            owner=user,
-        )
+        result = scraper_service.start_run(source_url=body.source_url, owner=user)
         return result
 
     @router.post("/api/scraper/stop/{run_id}")
@@ -65,21 +60,17 @@ def setup_scraper_routes(scraper_service) -> APIRouter:
             raise HTTPException(404, "Run not found")
 
         async def event_generator():
-            # Get the in-memory entry for progress events
             entry = scraper_service._active_runs.get(run_id)
             last_event_count = 0
 
             while True:
-                # Check if request was cancelled
                 if await request.is_disconnected():
                     break
 
-                # Get current status
                 current = scraper_service.get_status(run_id)
                 if not current:
                     break
 
-                # Emit new progress events
                 if entry:
                     events = entry.get("progress_events", [])
                     new_events = events[last_event_count:]
@@ -87,7 +78,6 @@ def setup_scraper_routes(scraper_service) -> APIRouter:
                         yield f"data: {json.dumps(event)}\n\n"
                     last_event_count = len(events)
 
-                # Check if run is complete
                 if current.get("status") in ("completed", "failed", "cancelled"):
                     yield f"data: {json.dumps({'type': 'done', 'status': current.get('status')})}\n\n"
                     break
@@ -119,20 +109,10 @@ def setup_scraper_routes(scraper_service) -> APIRouter:
         request: Request,
         page: int = Query(1, ge=1),
         limit: int = Query(50, ge=1, le=200),
-        min_score: Optional[int] = Query(None, ge=0, le=100),
-        provider: Optional[str] = Query(None),
-        exclude_with_video: bool = Query(True),
     ):
-        """List leads with filtering and pagination."""
+        """List leads with pagination."""
         user = _get_user(request)
-        result = scraper_service.get_leads(
-            owner=user,
-            page=page,
-            limit=limit,
-            min_score=min_score,
-            provider=provider,
-            exclude_with_video=exclude_with_video,
-        )
+        result = scraper_service.get_leads(owner=user, page=page, limit=limit)
         return result
 
     @router.get("/api/scraper/lead/{lead_id}")
@@ -151,15 +131,30 @@ def setup_scraper_routes(scraper_service) -> APIRouter:
             raise HTTPException(404, "Lead not found")
         return {"status": "deleted"}
 
-    # ─────────────────────────────────────────────────────────────────────
-    # Providers
-    # ─────────────────────────────────────────────────────────────────────
+    @router.post("/api/scraper/lead/{lead_id}/archive")
+    async def archive_lead(lead_id: str, request: Request):
+        """Archive a lead."""
+        success = scraper_service.archive_lead(lead_id)
+        if not success:
+            raise HTTPException(404, "Lead not found")
+        return {"status": "archived"}
 
-    @router.get("/api/scraper/providers")
-    async def list_providers(request: Request):
-        """List available scraper providers."""
-        providers = scraper_service.get_providers()
-        return {"providers": providers}
+    @router.post("/api/scraper/lead/{lead_id}/contacted")
+    async def mark_contacted_lead(lead_id: str, request: Request, body: dict):
+        """Mark a lead as contacted or not contacted."""
+        contacted = body.get("contacted", False)
+        success = scraper_service.mark_contacted_lead(lead_id, contacted)
+        if not success:
+            raise HTTPException(404, "Lead not found")
+        return {"status": "updated", "contacted": contacted}
+
+    @router.post("/api/scraper/lead/{lead_id}/favorite")
+    async def toggle_favorite_lead(lead_id: str, request: Request):
+        """Toggle favorite status of a lead."""
+        favorite = scraper_service.toggle_favorite_lead(lead_id)
+        if favorite is None:
+            raise HTTPException(404, "Lead not found")
+        return {"status": "updated", "favorite": favorite}
 
     # ─────────────────────────────────────────────────────────────────────
     # History & Stats
@@ -190,20 +185,12 @@ def setup_scraper_routes(scraper_service) -> APIRouter:
     # ─────────────────────────────────────────────────────────────────────
 
     @router.get("/api/scraper/export")
-    async def export_csv(
-        request: Request,
-        min_score: Optional[int] = Query(None, ge=0, le=100),
-        provider: Optional[str] = Query(None),
-    ):
+    async def export_csv(request: Request):
         """Export leads to CSV."""
         from fastapi.responses import Response
 
         user = _get_user(request)
-        csv_content = scraper_service.export_csv(
-            owner=user,
-            min_score=min_score,
-            provider=provider,
-        )
+        csv_content = scraper_service.export_csv(owner=user)
         return Response(
             content=csv_content,
             media_type="text/csv",

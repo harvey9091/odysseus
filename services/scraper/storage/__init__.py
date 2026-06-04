@@ -1,6 +1,4 @@
-# services/scraper/storage — Storage layer
-"""Database storage operations for scraper data."""
-
+# services/scraper/storage — Database operations
 from .lead_store import LeadStore
 
 __all__ = ["LeadStore"]

@@ -1,30 +1,17 @@
 /**
- * Scraper Intelligence System — Main Panel Module
- * Autonomous startup lead discovery and qualification dashboard.
- *
- * Renders as a native Odysseus floating window (same infrastructure as
- * Tasks, Compare, Research).  Supports drag, snap, dock, minimize, and
- * z-index stacking via modalManager + windowDrag.
+ * Generic Discovery Agent Panel — Clean interface for lead discovery.
+ * Accepts any directory URL and autonomously discovers startup leads.
  */
 
 import * as results from './results.js';
-import * as filters from './filters.js';
 import * as logs from './logs.js';
 import * as dashboard from './dashboard.js';
-import * as providers from './providers.js';
-import * as leadModal from './leadModal.js';
-import * as exportModule from './export.js';
 import { makeWindowDraggable } from '../windowDrag.js';
-import themeModule from '../theme.js';
 
 const API_BASE = window.location.origin;
 let _open = false;
 let _currentRun = null;
 let _eventSource = null;
-let _stats = null;
-let _leads = [];
-let _filtersState = {};
-let _escHandler = null;
 
 // ─────────────────────────────────────────────────────────────────────
 // Panel Lifecycle
@@ -38,7 +25,6 @@ export async function openPanel() {
   if (_open) return;
   _open = true;
 
-  // Build modal shell — same structure as Tasks / Compare / Research.
   const modal = document.createElement('div');
   modal.className = 'modal';
   modal.id = 'scraper-pane';
@@ -49,9 +35,8 @@ export async function openPanel() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:6px">
             <circle cx="11" cy="11" r="8"/>
             <path d="M21 21l-4.35-4.35"/>
-            <path d="M11 8v6M8 11h6"/>
           </svg>
-          Scraper Intelligence
+          Lead Discovery Agent
           <span class="scraper-status" id="scraper-status" style="margin-left:12px;">
             <span class="scraper-status-dot" id="scraper-status-dot"></span>
             <span id="scraper-status-text">Idle</span>
@@ -61,22 +46,32 @@ export async function openPanel() {
         <button class="close-btn" id="scraper-close-btn" title="Close">✖</button>
       </div>
       <div class="scraper-toolbar-row" id="scraper-toolbar">
-        <div class="scraper-filters-row" id="scraper-filters" style="display:flex;flex:1;gap:8px;align-items:center;"></div>
+        <div style="display:flex;flex:1;gap:8px;align-items:center;">
+          <input type="url" id="scraper-source-url" placeholder="Enter directory URL (Product Hunt, startup list, company directory...)" 
+                 style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:4px;background:var(--input-bg);color:var(--text);"
+                 list="scraper-examples-list" />
+          <datalist id="scraper-examples-list">
+            <option value="https://www.producthunt.com/leaderboard/daily">Product Hunt Daily</option>
+            <option value="https://www.producthunt.com/topics">Product Hunt Topics</option>
+            <option value="https://indiehackers.org">Indie Hackers</option>
+            <option value="https://betalist.com">BetaList</option>
+          </datalist>
+        </div>
         <div style="display:flex;gap:8px;align-items:center;">
           <button class="scraper-btn scraper-btn-secondary" id="scraper-export-btn">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x1="12" y2="3"/></svg>
             Export
           </button>
           <button class="scraper-btn scraper-btn-primary" id="scraper-run-btn">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-            Start Scrape
+            Discover
           </button>
         </div>
       </div>
       <div class="scraper-main-row">
         <div class="scraper-console-panel">
           <div class="scraper-section-title">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x1="20" y2="19"/></svg>
             Activity Console
           </div>
           <div class="scraper-console" id="scraper-console"></div>
@@ -92,13 +87,12 @@ export async function openPanel() {
         </div>
       </div>
       <div class="scraper-footer-row" id="scraper-footer">
-        <div class="scraper-stats-row" id="scraper-stats" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(140px, 1fr));gap:10px;"></div>
+        <div class="scraper-stats-row" id="scraper-stats" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(100px, 1fr));gap:10px;"></div>
       </div>
     </div>
   `;
   document.body.appendChild(modal);
 
-  // Make draggable — shared helper handles drag + L/R dock + snap.
   const content = modal.querySelector('.modal-content');
   const header = modal.querySelector('.modal-header');
   if (content && header) {
@@ -112,7 +106,6 @@ export async function openPanel() {
     });
   }
 
-  // Register with modal manager for minimize/restore/dock.
   try {
     const Modals = await import('../modalManager.js');
     Modals.register('scraper-pane', {
@@ -120,31 +113,31 @@ export async function openPanel() {
       sidebarBtnId: 'tool-scraper-btn',
       closeFn: closePanel,
       restoreFn: () => {},
-      label: 'Scraper',
-      icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/><path d="M11 8v6M8 11h6"/></svg>',
+      label: 'Discovery Agent',
+      icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>',
     });
   } catch {}
 
-  // Wire up UI
   _wireEvents(modal);
 
-  // Close on backdrop click (click outside .modal-content)
   modal.addEventListener('click', (e) => {
     if (e.target === modal) closePanel();
   });
 
-  // ESC to close
   _escHandler = (e) => {
     if (e.key === 'Escape' && _open) closePanel();
   };
   document.addEventListener('keydown', _escHandler);
 
-  // Load initial data
   await _loadStats();
   await _loadLeads();
-  await _loadProviders();
 
-  // Update active state
+  let _escHandler;
+  window.addEventListener('lead-deleted', () => {
+    _loadLeads();
+    _loadStats();
+  });
+
   document.getElementById('tool-scraper-btn')?.classList.add('active');
   document.getElementById('rail-scraper')?.classList.add('active');
 }
@@ -188,16 +181,9 @@ export function isOpen() {
 // ─────────────────────────────────────────────────────────────────────
 
 function _wireEvents(modal) {
-  // Close button
   modal.querySelector('#scraper-close-btn')?.addEventListener('click', closePanel);
-
-  // Run button
   modal.querySelector('#scraper-run-btn')?.addEventListener('click', _startScrape);
-
-  // Export button
-  modal.querySelector('#scraper-export-btn')?.addEventListener('click', () => {
-    exportModule.showExportDialog(_filtersState);
-  });
+  modal.querySelector('#scraper-export-btn')?.addEventListener('click', _exportCsv);
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -208,8 +194,8 @@ async function _loadStats() {
   try {
     const res = await fetch(`${API_BASE}/api/scraper/stats`, { credentials: 'same-origin' });
     if (res.ok) {
-      _stats = await res.json();
-      dashboard.render(document.getElementById('scraper-stats'), _stats);
+      const stats = await res.json();
+      dashboard.render(document.getElementById('scraper-stats'), stats);
     }
   } catch (e) {
     console.warn('Failed to load scraper stats:', e);
@@ -219,9 +205,6 @@ async function _loadStats() {
 async function _loadLeads(page = 1) {
   try {
     const params = new URLSearchParams({ page: page.toString(), limit: '50' });
-    if (_filtersState.min_score) params.set('min_score', _filtersState.min_score);
-    if (_filtersState.provider) params.set('provider', _filtersState.provider);
-
     const res = await fetch(`${API_BASE}/api/scraper/leads?${params}`, { credentials: 'same-origin' });
     if (res.ok) {
       const data = await res.json();
@@ -234,64 +217,75 @@ async function _loadLeads(page = 1) {
   }
 }
 
-async function _loadProviders() {
-  try {
-    const res = await fetch(`${API_BASE}/api/scraper/providers`, { credentials: 'same-origin' });
-    if (res.ok) {
-      const data = await res.json();
-      providers.render(document.getElementById('scraper-filters'), data.providers, _filtersState, (newFilters) => {
-        _filtersState = newFilters;
-        _loadLeads();
-      });
-    }
-  } catch (e) {
-    console.warn('Failed to load scraper providers:', e);
-  }
-}
+let _leads = [];
 
 // ─────────────────────────────────────────────────────────────────────
 // Scrape Control
 // ─────────────────────────────────────────────────────────────────────
 
 async function _startScrape() {
+  const sourceUrl = document.getElementById('scraper-source-url').value.trim();
   const btn = document.getElementById('scraper-run-btn');
   const statusDot = document.getElementById('scraper-status-dot');
   const statusText = document.getElementById('scraper-status-text');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<span class="scraper-spinner"></span> Running...';
+
+  if (!sourceUrl) {
+    logs.addMessage('scraper-console', { type: 'error', message: 'Please enter a source URL' });
+    return;
   }
-  if (statusDot) statusDot.classList.add('active');
-  if (statusText) statusText.textContent = 'Running';
+
+  if (!sourceUrl.startsWith('http://') && !sourceUrl.startsWith('https://')) {
+    logs.addMessage('scraper-console', { type: 'error', message: 'URL must start with http:// or https://' });
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="scraper-spinner"></span> Discovering...';
+  statusDot?.classList.add('active');
+  statusText.textContent = 'Running';
 
   try {
-    const body = {
-      providers: _filtersState.providers || ['hackernews', 'producthunt'],
-      filters: _filtersState,
-    };
-
     const res = await fetch(`${API_BASE}/api/scraper/start`, {
       method: 'POST',
       credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
+      body: JSON.stringify({ source_url: sourceUrl }),
     });
 
     if (res.ok) {
       const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
       _currentRun = data.run_id;
       _connectStream(data.run_id);
-      logs.addMessage('scraper-console', { type: 'info', message: 'Scrape started...' });
+      logs.addMessage('scraper-console', { type: 'info', message: `Discovery started from: ${sourceUrl}` });
     } else {
-      throw new Error('Failed to start scrape');
+      throw new Error('Failed to start discovery');
     }
   } catch (e) {
-    console.error('Start scrape failed:', e);
+    console.error('Start discovery failed:', e);
     logs.addMessage('scraper-console', { type: 'error', message: `Failed: ${e.message}` });
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Scrape';
+    btn.disabled = false;
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Discover';
+  }
+}
+
+async function _exportCsv() {
+  try {
+    const res = await fetch(`${API_BASE}/api/scraper/export`, { credentials: 'same-origin' });
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'scraper_leads.csv';
+      a.click();
+      window.URL.revokeObjectURL(url);
     }
+  } catch (e) {
+    console.error('Export failed:', e);
+    logs.addMessage('scraper-console', { type: 'error', message: 'Export failed' });
   }
 }
 
@@ -322,20 +316,11 @@ function _disconnectStream() {
 }
 
 function _handleStreamEvent(event) {
-  const consoleEl = document.getElementById('scraper-console');
-  if (!consoleEl) return;
-
-  // Add to console
   logs.addMessage('scraper-console', event);
 
-  // Handle specific events
   if (event.type === 'lead_found') {
-    _loadLeads();  // Refresh leads list
-    _loadStats();  // Refresh stats
-  }
-
-  if (event.type === 'lead_scored') {
     _loadLeads();
+    _loadStats();
   }
 
   if (event.type === 'done' || event.type === 'completed') {
@@ -350,13 +335,13 @@ function _onRunComplete() {
   const btn = document.getElementById('scraper-run-btn');
   if (btn) {
     btn.disabled = false;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Start Scrape';
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> Discover';
   }
 
   const statusDot = document.getElementById('scraper-status-dot');
   const statusText = document.getElementById('scraper-status-text');
-  if (statusDot) statusDot.classList.remove('active');
-  if (statusText) statusText.textContent = 'Idle';
+  statusDot?.classList.remove('active');
+  statusText.textContent = 'Idle';
 
   _loadStats();
   _loadLeads();
@@ -367,8 +352,35 @@ function _onRunComplete() {
 // ─────────────────────────────────────────────────────────────────────
 
 function _openLeadDetail(leadId) {
+  // Simple inline detail view
   const lead = _leads.find(l => l.id === leadId);
-  if (lead) {
-    leadModal.show(lead);
-  }
+  if (!lead) return;
+
+  const modal = document.createElement('div');
+  modal.className = 'modal';
+  modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);z-index:10000;display:flex;align-items:center;justify-content:center;';
+  modal.innerHTML = `
+    <div style="background:var(--bg);border-radius:8px;padding:20px;max-width:500px;width:90%;max-height:80vh;overflow:auto;">
+      <h3 style="margin-top:0;">${lead.name || 'Unknown'}</h3>
+      <p><strong>Website:</strong> <a href="${lead.website}" target="_blank" style="color:var(--accent);">${lead.website || 'N/A'}</a></p>
+      <p><strong>Description:</strong> ${lead.description || 'N/A'}</p>
+      <p><strong>Industry:</strong> ${lead.industry || lead.category || 'N/A'}</p>
+      <p><strong>Emails:</strong> ${(lead.emails || []).join(', ') || 'None found'}</p>
+      <p><strong>Founders:</strong> ${(lead.founders || []).map(f => f.name || f).join(', ') || 'N/A'}</p>
+      <div style="margin-top:16px;display:flex;gap:8px;justify-content:flex-end;">
+        <button class="scraper-btn scraper-btn-secondary" id="delete-lead-btn" data-lead-id="${lead.id}">Delete</button>
+        <button class="scraper-btn scraper-btn-primary" id="close-detail-btn">Close</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+
+  modal.querySelector('#close-detail-btn')?.addEventListener('click', () => modal.remove());
+  modal.querySelector('#delete-lead-btn')?.addEventListener('click', async (e) => {
+    const leadId = e.target.dataset.leadId;
+    await fetch(`${API_BASE}/api/scraper/lead/${leadId}`, { method: 'DELETE', credentials: 'same-origin' });
+    modal.remove();
+    _loadLeads();
+    _loadStats();
+  });
 }

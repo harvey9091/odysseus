@@ -3,9 +3,10 @@ uvicorn
 python-multipart
 python-dotenv
 httpx
-# Async HTTP client for the scraper service (email, founder, social,
-# metadata extractors + provider base + video detector all import aiohttp).
 aiohttp
+browser-use
+playwright
+crawl4ai
 pydantic>=2.0
 pydantic-settings>=2.0
 SQLAlchemy

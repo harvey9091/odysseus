@@ -1,130 +1,91 @@
-"""Tests for the scraper lead validator."""
+"""Tests for the Generic Discovery Agent."""
 import pytest
-from services.scraper.validators import LeadValidator, ValidationResult
+from services.scraper.discovery_agent import DiscoveryAgent, ExtractedLead
 
 
 @pytest.fixture
-def validator():
-    return LeadValidator()
+def agent():
+    return DiscoveryAgent(headless=True, timeout=10)
 
 
-class TestLeadValidator:
-    """Unit tests for lead quality validation."""
+class TestExtractedLead:
+    """Unit tests for lead data structure."""
 
-    def test_valid_startup_domain(self, validator):
-        result = validator.validate({
-            "name": "Acme SaaS",
-            "website": "https://acme.io",
-            "description": "A project management platform for teams",
-            "source_provider": "producthunt",
-        })
-        assert result.is_valid is True
-        assert result.is_startup is True
+    def test_to_dict(self, agent):
+        lead = ExtractedLead(
+            company_name="Acme Inc",
+            website="https://acme.io",
+            description="A SaaS platform",
+            founders=[{"name": "John Doe", "role": "founder"}],
+            emails=["hello@acme.io", "john@acme.io"],
+            linkedin="https://linkedin.com/company/acme",
+            twitter="https://twitter.com/acme",
+            github="https://github.com/acme",
+            contact_page="https://acme.io/contact",
+            industry="saas",
+            source_url="https://producthunt.com/posts/acme",
+        )
+        result = lead.to_dict()
+        assert result["name"] == "Acme Inc"
+        assert result["website"] == "https://acme.io"
+        assert result["domain"] == "acme.io"
+        assert len(result["founders"]) == 1
+        assert len(result["emails"]) == 2
+        assert result["industry"] == "saas"
 
-    def test_rejects_medium_article(self, validator):
-        result = validator.validate({
-            "name": "How We Scaled to 10K Users",
-            "website": "https://medium.com/@founder/how-we-scaled",
-            "description": "A deep dive into our growth strategy...",
-            "source_provider": "hackernews",
-        })
-        assert result.is_article is True or result.is_valid is False
+    def test_domain_extraction(self, agent):
+        lead = ExtractedLead(website="https://www.example.com/path")
+        assert lead._extract_domain("https://www.example.com/path") == "example.com"
 
-    def test_rejects_platform_domain(self, validator):
-        result = validator.validate({
-            "name": "Some Post",
-            "website": "https://news.ycombinator.com/item?id=123",
-            "description": "A discussion post",
-            "source_provider": "hackernews",
-        })
-        assert result.is_platform_page is True
 
-    def test_rejects_techcrunch(self, validator):
-        result = validator.validate({
-            "name": "Startup Raises $10M",
-            "website": "https://techcrunch.com/2024/startup-raises-10m/",
-            "description": "Article about a startup",
-            "source_provider": "hackernews",
-        })
-        assert result.is_platform_page is True
+class TestDiscoveryAgentExtraction:
+    """Unit tests for content extraction methods."""
 
-    def test_valid_show_hn_post(self, validator):
-        result = validator.validate({
-            "name": "My New App",
-            "website": "https://mynewapp.co",
-            "description": "Show HN: I built a task manager",
-            "source_provider": "hackernews",
-        })
-        assert result.is_valid is True
-        assert result.startup_likelihood >= 25
+    def test_is_valid_name(self, agent):
+        assert agent._is_valid_name("Acme Inc") is True
+        assert agent._is_valid_name("") is False
+        assert agent._is_valid_name("A") is False
+        assert agent._is_valid_name("Advertisement Banner") is False
 
-    def test_domain_quality_scoring(self, validator):
-        # Good TLD
-        r1 = validator._score_domain("example.io", "https://example.io")
-        assert r1 >= 50
+    def test_is_valid_email(self, agent):
+        assert agent._is_valid_email("hello@acme.io") is True
+        assert agent._is_valid_email("john.doe@acme.io") is True
+        assert agent._is_valid_email("noreply@example.com") is False
+        assert agent._is_valid_email("test@sentry.io") is False
 
-        # Low-quality TLD
-        r2 = validator._score_domain("example.tk", "http://example.tk")
-        assert r2 < 50
+    def test_is_valid_startup(self, agent):
+        lead = ExtractedLead(company_name="Acme", website="https://acme.io")
+        assert agent._is_valid_startup(lead) is True
 
-        # Short suspicious domain
-        r3 = validator._score_domain("ab.co", "https://ab.co")
-        assert r3 < 50
+        lead.website = "https://medium.com/@user/post"
+        assert agent._is_valid_startup(lead) is False
 
-    def test_rejects_generic_domain(self, validator):
-        result = validator.validate({
-            "name": "Top 10 Free Tools",
-            "website": "https://top-free-tools.tk",
-            "description": "List of free tools",
-            "source_provider": "hackernews",
-        })
-        assert result.is_valid is False
 
-    def test_no_domain_rejected(self, validator):
-        result = validator.validate({
-            "name": "Mysterious",
-            "website": "",
-            "description": "No website",
-            "source_provider": "hackernews",
-        })
-        assert result.is_valid is False
-        assert "No domain found" in result.rejection_reasons
+class TestDiscoveryAgentExtractionMethods:
+    """Test HTML extraction methods."""
 
-    def test_article_headline_penalized(self, validator):
-        result = validator.validate({
-            "name": "Why We Chose to Build with Rust: A Comprehensive Guide",
-            "website": "https://blog.example.com/rust-guide",
-            "description": "Our journey with Rust",
-            "source_provider": "hackernews",
-        })
-        assert result.is_valid is False or result.startup_likelihood < 35
+    def test_extract_company_name_from_html(self, agent):
+        html = "<html><head><title>Acme - Product Hunt</title></head><body><h1>Acme</h1></body></html>"
+        result = agent._extract_company_name(html, "https://example.com")
+        assert result == "Acme"
 
-    def test_valid_short_brand_name(self, validator):
-        result = validator.validate({
-            "name": "Flow",
-            "website": "https://flow.app",
-            "description": "Workflow automation",
-            "source_provider": "producthunt",
-        })
-        assert result.is_valid is True
+    def test_extract_description(self, agent):
+        html = '<html><head><meta property="og:description" content="A test company for all your needs."></head><body></body></html>'
+        result = agent._extract_description(html)
+        assert "test company" in result.lower()
 
-    def test_producthunt_boost(self, validator):
-        result = validator.validate({
-            "name": "New Tool",
-            "website": "https://newtool.dev",
-            "description": "A developer tool",
-            "source_provider": "producthunt",
-        })
-        assert result.startup_likelihood >= 40
+    def test_extract_industry(self, agent):
+        html = "We build artificial intelligence tools for developers"
+        result = agent._extract_industry(html)
+        assert "ai_ml" in result
 
-    def test_validation_result_dataclass(self, validator):
-        result = validator.validate({
-            "name": "Test",
-            "website": "https://test.co",
-            "description": "Test description",
-        })
-        assert isinstance(result, ValidationResult)
-        assert hasattr(result, "is_valid")
-        assert hasattr(result, "domain_quality_score")
-        assert hasattr(result, "startup_likelihood")
-        assert hasattr(result, "rejection_reasons")
+    def test_extract_social_profiles(self, agent):
+        html = '<a href="https://twitter.com/acme">Twitter</a><a href="https://github.com/acme/repo">GitHub</a>'
+        result = agent._extract_social_profiles(html)
+        assert "twitter" in result or "github" in result
+
+    def test_extract_emails_from_content(self, agent):
+        html = "Contact us at hello@acme.io or john.doe@acme.io"
+        result = agent._extract_emails_from_content(html)
+        emails = [e for e in result]
+        assert "hello@acme.io" in emails or "john.doe@acme.io" in emails

@@ -675,10 +675,18 @@ class ScraperLead(TimestampMixin, Base):
     launch_date = Column(DateTime, nullable=True)
     category = Column(String, nullable=True)
     country = Column(String, nullable=True)
+    # Product Hunt specific fields
+    rank = Column(Integer, nullable=True)  # Product Hunt rank
+    votes = Column(Integer, nullable=True)  # Product Hunt votes
+    comments = Column(Integer, nullable=True)  # Product Hunt comments
+    topics = Column(JSON, default=list)  # Product Hunt topics
     # Contact
     emails = Column(JSON, default=list)  # ["founder@x.com", "hello@x.com"]
-    founders = Column(JSON, default=list)  # [{"name": "...", "linkedin": "..."}]
+    founders = Column(JSON, default=list)  # [{"name": "...", "linkedin": "...", "twitter": "...", "bio": "...", "github": "...", "website": "..."}]
     social = Column(JSON, default=dict)  # {"twitter": "...", "linkedin": "..."}
+    # Lead management
+    contacted = Column(Boolean, default=False)  # Whether user has contacted this lead
+    favorite = Column(Boolean, default=False)   # Whether user has favorited this lead
     # Video detection
     has_video = Column(Boolean, default=False)
     video_urls = Column(JSON, default=list)

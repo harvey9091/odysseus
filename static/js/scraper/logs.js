@@ -48,7 +48,11 @@ export function addMessage(containerId, event) {
       break;
     case 'completed':
       icon = '<span class="scraper-log-icon scraper-log-success">✓</span>';
-      message = `Completed: ${event.stats?.leads_found || 0} leads found`;
+      if (event.stats) {
+        message = `Completed: ${event.stats.raw_candidates || 0} raw → ${event.stats.qualified_startups || 0} qualified → ${event.stats.stored_leads || 0} stored`;
+      } else {
+        message = `Completed: ${event.leads_found || 0} leads found`;
+      }
       break;
     default:
       icon = '<span class="scraper-log-icon">•</span>';
