@@ -234,8 +234,15 @@ async function _startScrape() {
     return;
   }
 
-  if (!sourceUrl.startsWith('http://') && !sourceUrl.startsWith('https://')) {
-    logs.addMessage('scraper-console', { type: 'error', message: 'URL must start with http:// or https://' });
+  // Proper URL validation using URL constructor
+  try {
+    const url = new URL(sourceUrl);
+    // Must be http or https
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+      throw new Error('Protocol must be http or https');
+    }
+  } catch (e) {
+    logs.addMessage('scraper-console', { type: 'error', message: `Invalid URL: ${e.message}` });
     return;
   }
 

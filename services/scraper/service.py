@@ -6,6 +6,7 @@ import logging
 import uuid
 from datetime import datetime
 from typing import Dict, Optional
+from urllib.parse import urlparse
 
 from .discovery_agent import DiscoveryAgent
 from .storage import LeadStore
@@ -145,10 +146,23 @@ class ScraperService:
         progress_callback({"type": "completed", "stats": {"stored_leads": stored_count}})
 
     def _is_valid_url(self, url: str) -> bool:
+        if not url or not url.strip():
+            logger.warning("URL validation failed: URL is empty or whitespace")
+            return False
         try:
-            parsed = urlparse(url)
-            return bool(parsed.scheme and parsed.netloc)
-        except Exception:
+            parsed = urlparse(url.strip())
+            if not parsed.scheme:
+                logger.warning(f"URL validation failed for '{url}': no scheme")
+                return False
+            if parsed.scheme not in ('http', 'https'):
+                logger.warning(f"URL validation failed for '{url}': invalid scheme '{parsed.scheme}'")
+                return False
+            if not parsed.netloc:
+                logger.warning(f"URL validation failed for '{url}': no network location")
+                return False
+            return True
+        except Exception as e:
+            logger.warning(f"URL validation failed for '{url}': {e}")
             return False
 
     # ─────────────────────────────────────────────────────────────────────

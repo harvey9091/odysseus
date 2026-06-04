@@ -1,11 +1,17 @@
 """Tests for the Generic Discovery Agent."""
 import pytest
 from services.scraper.discovery_agent import DiscoveryAgent, ExtractedLead
+from services.scraper.service import ScraperService
 
 
 @pytest.fixture
 def agent():
     return DiscoveryAgent(headless=True, timeout=10)
+
+
+@pytest.fixture
+def service():
+    return ScraperService()
 
 
 class TestExtractedLead:
@@ -89,3 +95,22 @@ class TestDiscoveryAgentExtractionMethods:
         result = agent._extract_emails_from_content(html)
         emails = [e for e in result]
         assert "hello@acme.io" in emails or "john.doe@acme.io" in emails
+
+
+class TestURLValidation:
+    """Tests for URL validation logic."""
+
+    def test_valid_urls_accepted(self, service):
+        assert service._is_valid_url("https://www.producthunt.com/leaderboard/daily/2026/6/3?ref=header_nav") is True
+        assert service._is_valid_url("https://www.producthunt.com/leaderboard/daily") is True
+        assert service._is_valid_url("https://betalist.com") is True
+        assert service._is_valid_url("https://betalist.com/browse/productivity/saas") is True
+
+    def test_invalid_urls_rejected(self, service):
+        assert service._is_valid_url("") is False
+        assert service._is_valid_url("not-a-url") is False
+        assert service._is_valid_url("ftp://example.com") is False
+        assert service._is_valid_url("httpx://example.com") is False
+
+    def test_empty_url_rejected(self, service):
+        assert service._is_valid_url(None) is False
