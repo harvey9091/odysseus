@@ -2,9 +2,6 @@
  * Scraper Logs — Live activity console.
  */
 
-let _messageCount = 0;
-const MAX_MESSAGES = 200;
-
 export function addMessage(containerId, event) {
   const container = document.getElementById(containerId);
   if (!container) return;
@@ -62,22 +59,24 @@ export function addMessage(containerId, event) {
   line.innerHTML = `<span class="scraper-log-time">[${timestamp}]</span> ${icon} <span class="scraper-log-msg">${_escapeHtml(message)}</span>`;
 
   container.appendChild(line);
-  _messageCount++;
-
-  // Trim old messages
-  while (container.children.length > MAX_MESSAGES) {
-    container.removeChild(container.firstChild);
-  }
-
-  // Auto-scroll
   container.scrollTop = container.scrollHeight;
+}
+
+export function getLogs(containerId) {
+  const container = document.getElementById(containerId);
+  if (!container) return '';
+  const lines = container.querySelectorAll('.scraper-log-line');
+  const parts = [];
+  lines.forEach(line => {
+    parts.push(line.textContent.trim());
+  });
+  return parts.join('\n');
 }
 
 export function clear(containerId) {
   const container = document.getElementById(containerId);
   if (container) {
     container.innerHTML = '';
-    _messageCount = 0;
   }
 }
 

@@ -19,21 +19,18 @@ export function render(container, leads, onLeadClick) {
     return;
   }
 
-  const cards = leads.map(lead => _renderCard(lead)).join('');
+  const cards = leads.map(lead => _renderCard(lead, onLeadClick)).join('');
   container.innerHTML = `<div class="scraper-results-grid">${cards}</div>`;
-
-  container.querySelectorAll('.scraper-card').forEach(card => {
-    card.addEventListener('click', () => {
-      const leadId = card.dataset.leadId;
-      if (onLeadClick) onLeadClick(leadId);
-    });
-  });
 }
 
-function _renderCard(lead) {
+function _renderCard(lead, onLeadClick) {
   const website = lead.website ? _extractDomain(lead.website) : '';
   const description = lead.description || 'No description available';
   const emailCount = (lead.emails || []).length;
+  const sourceUrl = lead.source_url || '';
+
+  const emailList = (lead.emails || []).join(', ');
+  const primaryEmail = (lead.emails || [])[0] || '';
   const founderCount = (lead.founders || []).length;
 
   let founderName = 'Team';
@@ -44,21 +41,26 @@ function _renderCard(lead) {
     }
   }
 
-  const industry = lead.industry || lead.category || '';
-  const source = lead.source_provider || 'discovery_agent';
+  const category = lead.category || lead.industry || '';
 
   return `
     <div class="scraper-card" data-lead-id="${lead.id}">
       <div class="scraper-card-header">
-        <div class="scraper-card-name">${_escapeHtml(lead.name)}</div>
+        <div class="scraper-card-name">${_escapeHtml(lead.name || 'Unknown')}</div>
+        <div class="scraper-card-actions">
+          ${primaryEmail ? `<span class="scraper-card-action" title="Email: ${_escapeHtml(primaryEmail)}" data-action="email">✉</span>` : ''}
+          <span class="scraper-card-action" title="Open website" data-action="website">🌐</span>
+          <span class="scraper-card-action" title="Copy link" data-action="copy-link">🔗</span>
+        </div>
       </div>
+      <div class="scraper-card-product">${_escapeHtml(category)}</div>
       <div class="scraper-card-website">${_escapeHtml(website)}</div>
       <div class="scraper-card-desc">${_escapeHtml(_truncate(description, 80))}</div>
       <div class="scraper-card-meta">
-        <span class="scraper-badge scraper-badge-industry">${_escapeHtml(industry)}</span>
-        ${emailCount ? `<span class="scraper-meta-emails" title="${(lead.emails || []).join(', ')}">✉ ${emailCount}</span>` : ''}
-        ${founderCount ? `<span class="scraper-meta-founders">👤 ${founderCount}</span>` : ''}
+        <span class="scraper-badge scraper-badge-email">${emailCount ? `✉ ${emailCount}` : 'No email'}</span>
+        ${sourceUrl ? `<span class="scraper-badge scraper-badge-source">Source</span>` : ''}
       </div>
+      ${emailList ? `<div class="scraper-card-emails" title="${_escapeHtml(emailList)}">${_escapeHtml(_truncate(emailList, 60))}</div>` : ''}
     </div>
   `;
 }

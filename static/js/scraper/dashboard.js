@@ -1,5 +1,5 @@
 /**
- * Scraper Dashboard — Stats widgets.
+ * Scraper Dashboard — Stats widgets and system metrics bar.
  */
 
 export function render(container, stats) {
@@ -40,4 +40,52 @@ export function render(container, stats) {
       <div class="scraper-stat-label">${w.label}</div>
     </div>
   `).join('');
+}
+
+export function renderMetrics(container, metrics) {
+  if (!container) return;
+  if (!metrics) {
+    container.innerHTML = '';
+    return;
+  }
+
+  const cpuColor = metrics.cpu_percent > 70 ? 'var(--red, #e06c75)' : 'var(--fg-muted, #888)';
+  const ramColor = metrics.ram_percent > 70 ? 'var(--red, #e06c75)' : 'var(--fg-muted, #888)';
+
+  container.innerHTML = `
+    <div class="scraper-metrics-bar">
+      <div class="scraper-metric">
+        <span class="scraper-metric-icon">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M9 9h6v6H9z"/></svg>
+        </span>
+        <span class="scraper-metric-label">CPU</span>
+        <span class="scraper-metric-value" style="color:${cpuColor}">${metrics.cpu_percent.toFixed(0)}%</span>
+      </div>
+      <div class="scraper-metric">
+        <span class="scraper-metric-icon">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 19a4 4 0 0 1-4-4 4 4 0 0 1 4-4h.5a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"/><path d="M12 19V5"/></svg>
+        </span>
+        <span class="scraper-metric-label">RAM</span>
+        <span class="scraper-metric-value" style="color:${ramColor}">${metrics.ram_percent.toFixed(0)}%</span>
+      </div>
+      <div class="scraper-metric">
+        <span class="scraper-metric-icon">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+        </span>
+        <span class="scraper-metric-label">Threads</span>
+        <span class="scraper-metric-value">${metrics.active_workers}/${metrics.max_workers}</span>
+      </div>
+      <div class="scraper-metric">
+        <span class="scraper-metric-icon">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+        </span>
+        <span class="scraper-metric-label">Leads</span>
+        <span class="scraper-metric-value">${metrics.total_leads || 0} saved</span>
+      </div>
+      <div class="scraper-metric scraper-metric-status">
+        <span class="scraper-status-dot ${metrics.status === 'running' ? 'active' : ''}"></span>
+        <span class="scraper-metric-value">${metrics.status}</span>
+      </div>
+    </div>
+  `;
 }

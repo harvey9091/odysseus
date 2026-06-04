@@ -186,6 +186,20 @@ class ScraperService:
         """Comprehensive health check with resource metrics."""
         return self._resources.health_check()
 
+    def get_system_metrics(self, owner: Optional[str] = None) -> dict:
+        """Get real-time system metrics for the UI."""
+        metrics = self._resources.get_status()
+        health = self._resources.health_check()
+        metrics.update({
+            "cpu_percent": health.get("cpu_percent", 0),
+            "ram_percent": health.get("ram_percent", 0),
+        })
+        stats = self.get_stats(owner=owner)
+        active_runs = self.get_active_runs(owner=owner)
+        metrics["total_leads"] = stats.get("total_leads", 0)
+        metrics["status"] = "running" if active_runs else "idle"
+        return metrics
+
     async def _execute_discovery(self, run_id: str, source_url: str, progress_callback):
         """Execute the discovery pipeline."""
         progress_callback({"type": "log", "message": f"Starting Generic Discovery Agent..."})
@@ -340,16 +354,16 @@ class ScraperService:
             row = {
                 "company_name": lead.get("name", ""),
                 "website": lead.get("website", ""),
-                "description": lead.get("description", "")[:300],
-                "founders": ", ".join(f.get("name", "") for f in lead.get("founders", [])),
+                "description": (lead.get("description", "") or "")[:300],
+                "founders": ", ".join(f.get("name", f) if isinstance(f, dict) else f for f in lead.get("founders", [])),
                 "emails": ", ".join(lead.get("emails", [])),
-                "linkedin": lead.get("social", {}).get("linkedin", ""),
-                "twitter": lead.get("social", {}).get("twitter", ""),
-                "github": lead.get("social", {}).get("github", ""),
+                "linkedin": (lead.get("social", {}) or {}).get("linkedin", ""),
+                "twitter": (lead.get("social", {}) or {}).get("twitter", ""),
+                "github": (lead.get("social", {}) or {}).get("github", ""),
                 "contact_page": lead.get("contact_page", ""),
-                "industry": lead.get("industry", ""),
+                "industry": lead.get("category", lead.get("industry", "")),
                 "source_url": lead.get("source_url", ""),
-                "discovery_date": lead.get("launch_date", lead.get("created_at", "")),
+                "discovery_date": lead.get("launch_date", lead.get("created_at", lead.get("discovery_date", ""))),
             }
             writer.writerow(row)
 

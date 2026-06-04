@@ -12,6 +12,7 @@ const API_BASE = window.location.origin;
 let _open = false;
 let _currentRun = null;
 let _eventSource = null;
+let _metricsInterval = null;
 
 // ─────────────────────────────────────────────────────────────────────
 // Panel Lifecycle
@@ -57,8 +58,12 @@ export async function openPanel() {
             <option value="https://betalist.com">BetaList</option>
           </datalist>
         </div>
-        <div style="display:flex;gap:8px;align-items:center;">
-          <button class="scraper-btn scraper-btn-secondary" id="scraper-export-btn">
+        <div style="display:flex;gap:6px;align-items:center;">
+          <button class="scraper-btn scraper-btn-secondary" id="scraper-copy-logs-btn" title="Copy all logs to clipboard">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copy Logs
+          </button>
+          <button class="scraper-btn scraper-btn-secondary" id="scraper-export-btn" title="Export leads to CSV">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x1="12" y2="3"/></svg>
             Export
           </button>
@@ -89,6 +94,7 @@ export async function openPanel() {
       <div class="scraper-footer-row" id="scraper-footer">
         <div class="scraper-stats-row" id="scraper-stats" style="display:grid;grid-template-columns:repeat(auto-fit, minmax(100px, 1fr));gap:10px;"></div>
       </div>
+      <div class="scraper-metrics-bar" id="scraper-metrics-bar"></div>
     </div>
   `;
   document.body.appendChild(modal);
@@ -124,6 +130,22 @@ export async function openPanel() {
     if (e.target === modal) closePanel();
   });
 
+  const escHandler = (e) => {
+    if (e.key === 'Escape' && _open) closePanel();
+  };
+  document.addEventListener('keydown', escHandler);
+
+  await _loadStats();
+  await _loadLeads();
+  await _loadMetrics();
+  _startMetricsPoll();
+
+  window.addEventListener('lead-deleted', () => {
+    _loadLeads();
+    _loadStats();
+  });
+
+  let _escHandler;
   _escHandler = (e) => {
     if (e.key === 'Escape' && _open) closePanel();
   };
@@ -131,8 +153,9 @@ export async function openPanel() {
 
   await _loadStats();
   await _loadLeads();
+  await _loadMetrics();
+  _startMetricsPoll();
 
-  let _escHandler;
   window.addEventListener('lead-deleted', () => {
     _loadLeads();
     _loadStats();
@@ -146,6 +169,11 @@ export function closePanel() {
   if (!_open) return;
   _open = false;
   _disconnectStream();
+
+  if (_metricsInterval) {
+    clearInterval(_metricsInterval);
+    _metricsInterval = null;
+  }
 
   const modal = document.getElementById('scraper-pane');
   if (modal) {
@@ -184,6 +212,7 @@ function _wireEvents(modal) {
   modal.querySelector('#scraper-close-btn')?.addEventListener('click', closePanel);
   modal.querySelector('#scraper-run-btn')?.addEventListener('click', _startScrape);
   modal.querySelector('#scraper-export-btn')?.addEventListener('click', _exportCsv);
+  modal.querySelector('#scraper-copy-logs-btn')?.addEventListener('click', _copyLogs);
 }
 
 // ─────────────────────────────────────────────────────────────────────
@@ -215,6 +244,27 @@ async function _loadLeads(page = 1) {
   } catch (e) {
     console.warn('Failed to load scraper leads:', e);
   }
+}
+
+async function _loadMetrics() {
+  try {
+    const res = await fetch(`${API_BASE}/api/scraper/metrics`, { credentials: 'same-origin' });
+    if (res.ok) {
+      const metrics = await res.json();
+      dashboard.renderMetrics(document.getElementById('scraper-metrics-bar'), metrics);
+      if (metrics.total_leads) {
+        document.getElementById('scraper-lead-count').textContent = `(${metrics.total_leads})`;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load scraper metrics:', e);
+  }
+}
+
+function _startMetricsPoll() {
+  _metricsInterval = setInterval(() => {
+    if (_open) _loadMetrics();
+  }, 3000);
 }
 
 let _leads = [];
@@ -289,11 +339,26 @@ async function _exportCsv() {
       a.download = 'scraper_leads.csv';
       a.click();
       window.URL.revokeObjectURL(url);
+    } else {
+      logs.addMessage('scraper-console', { type: 'error', message: 'Export failed - check backend' });
     }
   } catch (e) {
     console.error('Export failed:', e);
     logs.addMessage('scraper-console', { type: 'error', message: 'Export failed' });
   }
+}
+
+function _copyLogs() {
+  const text = logs.getLogs('scraper-console');
+  if (!text.trim()) {
+    uiModule.showToast('No logs to copy');
+    return;
+  }
+  navigator.clipboard.writeText(text).then(() => {
+    uiModule.showToast('Logs copied to clipboard');
+  }).catch(() => {
+    uiModule.showError('Failed to copy logs');
+  });
 }
 
 function _connectStream(runId) {

@@ -215,6 +215,25 @@ def setup_scraper_routes(scraper_service) -> APIRouter:
         status = scraper_service.get_resource_status()
         return status
 
+    @router.get("/api/scraper/metrics")
+    async def scraper_metrics(request: Request):
+        """Get live system metrics for the bottom bar."""
+        metrics = scraper_service.get_system_metrics()
+        user = _get_user(request)
+        stats = scraper_service.get_stats(owner=user)
+        active_runs = scraper_service.get_active_runs(owner=user)
+        return {
+            "cpu_percent": metrics.get("cpu_percent", 0),
+            "ram_percent": metrics.get("ram_percent", 0),
+            "active_workers": metrics.get("active_workers", 0),
+            "max_workers": metrics.get("max_workers", 5),
+            "total_leads": stats.get("total_leads", 0),
+            "status": "running" if active_runs else "idle",
+            "load_state": metrics.get("load_state", "normal"),
+        }
+
+    return router
+
 
 def _get_user(request: Request) -> str:
     """Get current user from request, or default if auth disabled."""

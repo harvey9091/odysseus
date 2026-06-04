@@ -85,7 +85,9 @@ class DiscoveryAgent:
         self.timeout = timeout
         self._browser = None
         self._context = None
+        self._playwright = None
         self._resources = None
+        self._http_session: Optional[aiohttp.ClientSession] = None
 
     async def _get_resources(self):
         """Lazy-load resource manager."""
@@ -94,25 +96,70 @@ class DiscoveryAgent:
             self._resources = get_resource_manager()
         return self._resources
 
+    async def _get_http_session(self) -> aiohttp.ClientSession:
+        """Reuse a single aiohttp session for all HTTP fetches."""
+        if self._http_session is None or self._http_session.closed:
+            timeout = aiohttp.ClientTimeout(total=self.timeout)
+            self._http_session = aiohttp.ClientSession(
+                timeout=timeout,
+                headers={"User-Agent": self._get_user_agent()},
+            )
+        return self._http_session
+
+    async def close(self):
+        """Release shared resources."""
+        if self._http_session and not self._http_session.closed:
+            await self._http_session.close()
+        if self._browser:
+            try:
+                await self._browser.close()
+            except Exception:
+                pass
+            self._browser = None
+        if self._playwright:
+            try:
+                await self._playwright.stop()
+            except Exception:
+                pass
+            self._playwright = None
+
     async def discover(self, source_url: str, progress_callback=None) -> list[ExtractedLead]:
         """Main entry point - discovers leads from any source URL."""
         if progress_callback:
             progress_callback({"type": "log", "message": f"Starting discovery from: {source_url}"})
 
         leads = []
-        company_urls = await self._discover_company_pages(source_url, progress_callback)
+        seen_urls: set = set()
+        company_urls = []
+        try:
+            company_urls = await self._discover_company_pages(source_url, progress_callback)
+        except Exception as exc:
+            logger.error("Company page discovery failed: %s", exc, exc_info=True)
+            if progress_callback:
+                progress_callback({"type": "error", "message": f"Discovery error: {exc}"})
+            return []
 
         if progress_callback:
             progress_callback({"type": "log", "message": f"Found {len(company_urls)} company pages"})
 
         for i, company_url in enumerate(company_urls):
+            if company_url in seen_urls:
+                continue
+            seen_urls.add(company_url)
             if progress_callback:
                 progress_callback({
                     "type": "log",
-                    "message": f"Processing company {i+1}/{len(company_urls)}: {company_url}"
+                    "message": f"Processing company {i+1}/{len(company_urls)}: {company_url}",
                 })
 
-            lead = await self._extract_company_data(company_url, progress_callback)
+            try:
+                lead = await self._extract_company_data(company_url, progress_callback)
+            except Exception as exc:
+                logger.error("Company extraction failed for %s: %s", company_url, exc, exc_info=True)
+                if progress_callback:
+                    progress_callback({"type": "error", "message": f"Extraction error: {exc}"})
+                continue
+
             if lead and self._is_valid_startup(lead):
                 leads.append(lead)
                 if progress_callback:
@@ -120,7 +167,7 @@ class DiscoveryAgent:
                         "type": "lead_found",
                         "name": lead.company_name,
                         "website": lead.website,
-                        "emails": len(lead.emails)
+                        "emails": len(lead.emails),
                     })
 
         return leads
@@ -221,17 +268,23 @@ class DiscoveryAgent:
         await resources.rate_limit()
 
         try:
-            timeout = aiohttp.ClientTimeout(total=self.timeout)
-            async with aiohttp.ClientSession(timeout=timeout) as session:
-                async with session.get(url, headers={"User-Agent": self._get_user_agent()}) as response:
-                    if response.status == 200:
-                        return await response.text()
+            session = await self._get_http_session()
+            async with session.get(url, allow_redirects=True) as response:
+                if response.status == 200:
+                    return await response.text()
+                if response.status == 429:
+                    await asyncio.sleep(2)
+                return ""
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.debug(f"HTTP fetch failed for {url}: {e}")
 
         # Fallback to browser for JS-heavy sites
         try:
             return await self._fetch_with_browser(url)
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.debug(f"Browser fetch failed for {url}: {e}")
 
@@ -240,13 +293,11 @@ class DiscoveryAgent:
     async def _fetch_with_browser(self, url: str) -> str:
         """Fetch with Playwright browser for JS rendering.
         
-        Respects browser instance limits and implements backoff on constrained resources.
+        Reuses browser instances and respects resource limits with backoff.
         """
         resources = await self._get_resources()
 
-        # Check if we can get a browser slot
         if not await resources.acquire_browser():
-            # Implement exponential backoff when browser slots unavailable
             backoff = min(2 ** (resources._browser_instances // 2), 16)
             logger.info(f"Browser slot unavailable, backing off for {backoff}s")
             await asyncio.sleep(backoff)
@@ -254,13 +305,19 @@ class DiscoveryAgent:
                 return ""
 
         try:
-            from playwright.async_api import async_playwright
-            playwright = await async_playwright().start()
-            browser = await playwright.chromium.launch(
-                headless=self.headless,
-                args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--memory-pressure-off"]
-            )
-            context = await browser.new_context(
+            if self._browser is None or self._browser.is_closed():
+                try:
+                    from playwright.async_api import async_playwright
+                    self._playwright = await async_playwright().start()
+                    self._browser = await self._playwright.chromium.launch(
+                        headless=self.headless,
+                        args=["--disable-blink-features=AutomationControlled", "--no-sandbox", "--memory-pressure-off", "--disable-dev-shm-usage"]
+                    )
+                except ImportError:
+                    logger.warning("Playwright not available, skipping browser fallback")
+                    return ""
+
+            context = await self._browser.new_context(
                 java_script_enabled=True,
                 viewport={"width": 1280, "height": 720}
             )
@@ -268,15 +325,19 @@ class DiscoveryAgent:
 
             try:
                 await page.goto(url, wait_until="domcontentloaded", timeout=self.timeout * 1000)
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(0.3)
                 return await page.content()
             finally:
-                await page.close()
-                await context.close()
-                await browser.close()
-        except ImportError:
-            logger.warning("Playwright not available, skipping browser fallback")
-            return ""
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+                try:
+                    await context.close()
+                except Exception:
+                    pass
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             logger.error(f"Browser fetch error: {e}")
             return ""

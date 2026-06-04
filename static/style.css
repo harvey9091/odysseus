@@ -35275,7 +35275,7 @@ body.theme-frosted .modal {
 .scraper-modal-content {
   width: min(95vw, 1000px);
   max-width: none;
-  height: min(90vh, 720px);
+  height: min(90vh, 780px);
   background: var(--panel, #141414);
   display: flex;
   flex-direction: column;
@@ -35928,6 +35928,119 @@ body.theme-frosted .modal {
 .scraper-page-info {
   font-size: 11px;
   color: var(--fg-muted, #666);
+}
+
+/* Console horizontal scrollbar */
+.scraper-console {
+  overflow-y: auto;
+  overflow-x: auto;
+}
+.scraper-log-line {
+  white-space: pre;
+  overflow: visible;
+  text-overflow: unset;
+}
+
+/* Copy Logs button */
+.scraper-copy-logs-btn {
+  background: var(--bg, #0e0e0e);
+  border: 1px solid var(--border, #232323);
+  color: var(--fg-muted, #888);
+  padding: 5px 12px;
+  border-radius: 6px;
+  font-size: 11px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.scraper-copy-logs-btn:hover {
+  border-color: var(--fg-muted, #555);
+  color: var(--fg, #e8e8e8);
+}
+
+/* Lead card enhancements */
+.scraper-card-product {
+  font-size: 10px;
+  color: var(--accent, var(--red));
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  font-weight: 600;
+}
+.scraper-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+.scraper-card-action {
+  cursor: pointer;
+  font-size: 13px;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.scraper-card-action:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.scraper-card-emails {
+  font-size: 10px;
+  color: var(--fg-muted, #666);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scraper-badge-source {
+  background: color-mix(in srgb, var(--accent, var(--red)) 15%, transparent);
+  color: var(--accent, var(--red));
+}
+.scraper-badge-email {
+  background: color-mix(in srgb, var(--green, #4ade80) 12%, transparent);
+  color: var(--green, #4ade80);
+}
+
+/* System Metrics Bar */
+.scraper-metrics-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 6px 20px;
+  border-top: 1px solid var(--border, #232323);
+  background: var(--bg, #0e0e0e);
+  flex-shrink: 0;
+  overflow-x: auto;
+}
+.scraper-metric {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: var(--fg-muted, #888);
+  white-space: nowrap;
+}
+.scraper-metric-icon {
+  opacity: 0.6;
+  display: flex;
+}
+.scraper-metric-label {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-size: 10px;
+}
+.scraper-metric-value {
+  font-weight: 600;
+  color: var(--fg, #e8e8e8);
+  font-variant-numeric: tabular-nums;
+}
+.scraper-metric-status {
+  margin-left: auto;
+}
+.scraper-metric-status .scraper-status-dot {
+  margin-right: 4px;
 }
 
 /* Responsive */

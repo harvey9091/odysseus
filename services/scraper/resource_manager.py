@@ -3,7 +3,7 @@
 
 Protects against:
 - CPU overload (>80%)
-- RAM overload (>75%)  
+- RAM overload (>75%)
 - Browser instance proliferation
 - Request rate issues
 """
@@ -13,9 +13,10 @@ import logging
 import os
 import time
 from collections import deque
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Optional
+from typing import Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +62,10 @@ class ResourceManager:
         self._job_queue: list[QueuedJob] = []
         self._queue_event = asyncio.Event()
         self._queue_event.set()
+
+        self._resource_cache: Tuple[float, float] = (50.0, 50.0)
+        self._resource_cache_ts: float = 0.0
+        self._resource_cache_ttl: float = 2.0
 
     async def acquire_worker(self, timeout: float = 300.0) -> bool:
         """Acquire a worker slot. Returns False if server is overloaded or paused."""
@@ -138,8 +143,7 @@ class ResourceManager:
             return False
 
         self._paused_until = None
-        cpu = await self._get_cpu_percent()
-        ram = await self._get_ram_percent()
+        cpu, ram = await self._get_resource_usage()
 
         if cpu >= CPU_THRESHOLD or ram >= RAM_THRESHOLD:
             self._consecutive_high_load += 1
@@ -156,65 +160,43 @@ class ResourceManager:
             self._load_state = SystemLoadState.NORMAL
             return True
 
+    @classmethod
+    async def _get_resource_usage(cls) -> Tuple[float, float]:
+        """Get CPU and RAM usage with caching to reduce psutil overhead."""
+        instance = _resource_manager
+        if instance is not None and hasattr(instance, "_resource_cache_ts") and instance._resource_cache_ts and (time.time() - instance._resource_cache_ts) < instance._resource_cache_ttl:
+            return instance._resource_cache
+
+        cpu, ram = cls._read_resource_usage()
+        if instance is not None:
+            instance._resource_cache = (cpu, ram)
+            instance._resource_cache_ts = time.time()
+        return cpu, ram
+
     @staticmethod
-    def _get_cpu_percent_sync() -> float:
-        """Get CPU usage percentage (sync version for health_check)."""
+    def _read_resource_usage() -> Tuple[float, float]:
+        """Read CPU and RAM without repeated psutil calls."""
+        cpu = ram = 50.0
         try:
             import psutil
-            return psutil.cpu_percent(interval=0.1)
+            cpu = psutil.cpu_percent(interval=0.1)
+            ram = psutil.virtual_memory().percent
         except ImportError:
             try:
                 with open("/proc/loadavg") as f:
                     load = float(f.read().split()[0])
-                return min(load * 100 / os.cpu_count(), 100) if os.cpu_count() else 50
+                cpu = min(load * 100 / os.cpu_count(), 100) if os.cpu_count() else 50.0
             except Exception:
-                return 50.0
-
-    @staticmethod
-    async def _get_cpu_percent() -> float:
-        """Get CPU usage percentage."""
-        try:
-            import psutil
-            return psutil.cpu_percent(interval=0.1)
-        except ImportError:
-            try:
-                with open("/proc/loadavg") as f:
-                    load = float(f.read().split()[0])
-                return min(load * 100 / os.cpu_count(), 100) if os.cpu_count() else 50
-            except Exception:
-                return 50.0
-
-    @staticmethod
-    def _get_ram_percent_sync() -> float:
-        """Get RAM usage percentage (sync version for health_check)."""
-        try:
-            import psutil
-            return psutil.virtual_memory().percent
-        except ImportError:
+                pass
             try:
                 with open("/proc/meminfo") as f:
                     lines = f.readlines()
-                    mem_total = int(lines[0].split()[1])
-                    mem_available = int(lines[6].split()[1])
-                    return 100 - (mem_available / mem_total * 100)
+                mem_total = int(lines[0].split()[1])
+                mem_available = int(lines[6].split()[1])
+                ram = 100 - (mem_available / mem_total * 100)
             except Exception:
-                return 50.0
-
-    @staticmethod
-    async def _get_ram_percent() -> float:
-        """Get RAM usage percentage."""
-        try:
-            import psutil
-            return psutil.virtual_memory().percent
-        except ImportError:
-            try:
-                with open("/proc/meminfo") as f:
-                    lines = f.readlines()
-                    mem_total = int(lines[0].split()[1])
-                    mem_available = int(lines[6].split()[1])
-                    return 100 - (mem_available / mem_total * 100)
-            except Exception:
-                return 50.0
+                pass
+        return cpu, ram
 
     def get_status(self) -> dict:
         """Get current resource manager status."""
@@ -231,15 +213,15 @@ class ResourceManager:
 
     def health_check(self) -> dict:
         """Comprehensive health check in cloud-friendly format."""
+        cpu, ram = self._resource_cache
+        disk = 50.0
         try:
             import psutil
-            cpu = psutil.cpu_percent(interval=0.1)
-            ram = psutil.virtual_memory().percent
             disk = psutil.disk_usage("/").percent
         except ImportError:
-            cpu = self._get_cpu_percent_sync()
-            ram = self._get_ram_percent_sync()
-            disk = 50.0
+            pass
+        except Exception:
+            pass
 
         status = self.get_status()
         status.update({
