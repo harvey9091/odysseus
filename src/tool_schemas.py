@@ -1055,6 +1055,94 @@ FUNCTION_TOOL_SCHEMAS = [
             }
         }
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "discover_producthunt_leads",
+            "description": "Search Product Hunt for startups matching a keyword. Returns lead information including name, email, company, and engagement metrics.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search keyword"},
+                    "limit": {"type": "integer", "description": "Max number of leads to return (default 20)"},
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "discover_beta_leads",
+            "description": "Search beta startup platforms for startups matching a keyword.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {"type": "string", "description": "Search keyword"},
+                    "limit": {"type": "integer", "description": "Max number of leads to return (default 20)"},
+                },
+                "required": ["query"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "score_leads",
+            "description": "Score leads based on quality signals. Qualifies leads for outreach.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "leads": {"type": "array", "items": {"type": "object"}},
+                    "min_score": {"type": "integer", "description": "Minimum score threshold (default 70)"},
+                },
+                "required": ["leads"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "sync_to_listmonk",
+            "description": "Sync qualified leads to Listmonk email marketing platform.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lead_ids": {"type": "array", "items": {"type": "string"}},
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "campaign_metrics",
+            "description": "View email campaign statistics including opens, clicks, and delivery rates.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "campaign_id": {"type": "string"},
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "export_leads",
+            "description": "Export leads to CSV or JSON format.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "lead_ids": {"type": "array", "items": {"type": "string"}},
+                    "format": {"type": "string", "enum": ["csv", "json"]},
+                },
+                "required": []
+            }
+        }
+    },
 ]
 
 
@@ -1209,7 +1297,7 @@ def function_call_to_tool_block(name: str, arguments: str) -> Optional[ToolBlock
                 "sectionAccent", "brandColor", "inputBg", "inputBorder",
                 "sendBtnBg", "sendBtnHover", "codeBg", "codeFg",
                 "toggleBg", "toggleActive", "accentPrimary", "accentError",
-            ]
+]
             for ak in adv_keys:
                 if colors.get(ak):
                     content += f" {ak}={colors[ak]}"
@@ -1217,7 +1305,9 @@ def function_call_to_tool_block(name: str, arguments: str) -> Optional[ToolBlock
             content = action
     elif tool_type in ("manage_tasks", "manage_skills", "api_call",
                         "manage_endpoints", "manage_mcp", "manage_webhooks",
-                        "manage_tokens", "manage_documents", "manage_settings"):
+                        "manage_tokens", "manage_documents", "manage_settings",
+                        "discover_producthunt_leads", "discover_beta_leads", "score_leads",
+                        "sync_to_listmonk", "campaign_metrics", "export_leads"):
         content = json.dumps(args)
     elif tool_type == "ask_teacher":
         content = args.get("model", "auto") + "\n" + args.get("problem", "")

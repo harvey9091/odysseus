@@ -44,6 +44,7 @@ import { initAgentSelector } from './js/agentSelector.js';
 import { initKeyboardShortcuts } from './js/keyboard-shortcuts.js';
 import { initSidebarLayout, syncRailSide } from './js/sidebar-layout.js';
 import { initSectionCollapse, initSectionDrag } from './js/section-management.js';
+import leadhunterModule from './js/leadhunter.js';
 
 const API_BASE = window.location.origin;
 window.themeModule = themeModule;
@@ -998,11 +999,11 @@ function initializeEventListeners() {
       setTimeout(_goFullscreen, 50);
       setTimeout(_goFullscreen, 200);
     },
-    '/memory':   () => document.getElementById('tool-memory-btn')?.click(),
-    '/gallery':  () => document.getElementById('tool-gallery-btn')?.click(),
-    '/tasks':    () => document.getElementById('tool-tasks-btn')?.click(),
-    '/library':  () => sessionModule && sessionModule.openLibrary && sessionModule.openLibrary(),
-  };
+'/memory':   () => document.getElementById('tool-memory-btn')?.click(),
+     '/gallery':  () => document.getElementById('tool-gallery-btn')?.click(),
+     '/tasks':    () => document.getElementById('tool-tasks-btn')?.click(),
+     '/library':  () => sessionModule && sessionModule.openLibrary && sessionModule.openLibrary(),
+   };
   const _opener = _routeOpen[urlPath];
   // Defer the opener — at this point in init, the modules whose handlers
   // we trigger (#rail-new-session click handler, the email-section header

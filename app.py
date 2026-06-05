@@ -661,6 +661,10 @@ app.include_router(setup_backup_routes(memory_manager, preset_manager, skills_ma
 from routes.leads_routes import setup_leads_routes
 app.include_router(setup_leads_routes())
 
+# LeadHunter Agent
+from routes.leadhunter_routes import setup_leadhunter_routes
+app.include_router(setup_leadhunter_routes())
+
 from routes.font_routes import setup_font_routes
 app.include_router(setup_font_routes())
 

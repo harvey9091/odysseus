@@ -565,6 +565,8 @@ async def execute_tool_block(
         do_manage_contact,
         do_vault_search, do_vault_get, do_vault_unlock,
         do_app_api,
+        do_discover_producthunt_leads, do_discover_beta_leads, do_score_leads,
+        do_sync_to_listmonk, do_campaign_metrics, do_export_leads,
     )
 
     tool = block.tool_type
@@ -773,6 +775,24 @@ async def execute_tool_block(
     elif tool == "vault_unlock":
         desc = "vault_unlock"
         result = await do_vault_unlock(content, owner=owner)
+    elif tool == "discover_producthunt_leads":
+        desc = "discover_producthunt_leads"
+        result = await do_discover_producthunt_leads(content, owner=owner)
+    elif tool == "discover_beta_leads":
+        desc = "discover_beta_leads"
+        result = await do_discover_beta_leads(content, owner=owner)
+    elif tool == "score_leads":
+        desc = "score_leads"
+        result = await do_score_leads(content, owner=owner)
+    elif tool == "sync_to_listmonk":
+        desc = "sync_to_listmonk"
+        result = await do_sync_to_listmonk(content, owner=owner)
+    elif tool == "campaign_metrics":
+        desc = "campaign_metrics"
+        result = await do_campaign_metrics(content, owner=owner)
+    elif tool == "export_leads":
+        desc = "export_leads"
+        result = await do_export_leads(content, owner=owner)
     elif tool.startswith("mcp__"):
         # MCP tool dispatch
         mcp = get_mcp_manager()

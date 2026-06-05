@@ -285,6 +285,9 @@ Odysseus serves as a **personal AI infrastructure layer** — a single self-host
 ### services/stt/ (2 files)
 - `stt_service.py` (207) — Multi-provider STT: local faster-whisper, OpenAI API, browser
 
+### services/leadhunter/ (2 files) **NEW**
+- `service.py` — LeadHunterService: Product Hunt and beta lead discovery, lead scoring, Listmonk sync, campaign metrics
+
 ### services/youtube/ (2 files)
 - `youtube_handler.py` (265) — YouTube transcript extraction, comment fetching
 
@@ -1332,9 +1335,15 @@ AgentManager (singleton, thread-safe)
 │       ├── tool_schemas.FUNCTION_TOOL_SCHEMAS → OpenAI function format
 │       ├── agent_tools.parse_tool_blocks() / execute_tool_block()
 │       └── tool_implementations → 60+ tool implementations
-└── HermesBackend (external)
-    └── HTTP/SSE proxy to Hermes service
-        └── Falls back to OpenCode if unhealthy
+├── HermesBackend (external)
+│   └── HTTP/SSE proxy to Hermes service
+│       └── Falls back to OpenCode if unhealthy
+└── LeadHunterBackend (NEW)
+    └── Specialized lead discovery agent
+        ├── discover_producthunt_leads / discover_beta_leads
+        ├── score_leads → qual scoring pipeline
+        ├── sync_to_listmonk → campaign import
+        └── campaign_metrics / export_leads
 ```
 
 ## Agent Backend Selection

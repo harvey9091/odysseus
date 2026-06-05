@@ -23,7 +23,7 @@ import os
 import threading
 from typing import Dict, List, Optional
 
-from src.agent_backend import AgentBackend, OpenCodeBackend, HermesBackend
+from src.agent_backend import AgentBackend, OpenCodeBackend, HermesBackend, LeadHunterBackend
 
 logger = logging.getLogger(__name__)
 
@@ -177,8 +177,8 @@ def get_agent_manager() -> AgentManager:
 def setup_default_backends() -> None:
     """Register the built-in agent backends.
 
-    Called during app initialization (app.py). Sets up OpenCode and Hermes,
-    with Hermes configured to fall back to OpenCode when unavailable.
+    Called during app initialization (app.py). Sets up OpenCode, Hermes,
+    and LeadHunter with Hermes configured to fall back to OpenCode when unavailable.
     """
     mgr = get_agent_manager()
 
@@ -190,6 +190,11 @@ def setup_default_backends() -> None:
     hermes = HermesBackend()
     hermes.set_fallback(opencode)
     mgr.register(hermes)
+
+    # LeadHunter — lead discovery and Listmonk sync
+    leadhunter = LeadHunterBackend()
+    leadhunter.set_fallback(opencode)
+    mgr.register(leadhunter)
 
     logger.info(
         f"Default agent backends registered: "

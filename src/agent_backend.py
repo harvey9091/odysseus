@@ -325,3 +325,127 @@ class HermesBackend(AgentBackend):
         info["url"] = self._url or None
         info["has_fallback"] = self._fallback_backend is not None
         return info
+
+
+class LeadHunterBackend(AgentBackend):
+    """LeadHunter agent backend — lead discovery and email marketing.
+
+    Provides capabilities for discovering Product Hunt and beta startups,
+    scoring leads, syncing to Listmonk, and campaign analytics.
+    """
+
+    name = "leadhunter"
+    display_name = "LeadHunter"
+    description = (
+        "LeadHunter agent — discover startups from Product Hunt and beta platforms, "
+        "score leads, sync to Listmonk, and track campaign analytics."
+    )
+
+    def __init__(self):
+        super().__init__()
+        self._service: Optional[Any] = None
+        self._fallback_backend: Optional[AgentBackend] = None
+
+    def set_fallback(self, backend: AgentBackend) -> None:
+        """Set a fallback backend to use when LeadHunter is unavailable."""
+        self._fallback_backend = backend
+
+    async def initialize(self) -> None:
+        from services.leadhunter import get_lead_hunter_service
+        self._service = get_lead_hunter_service()
+        await self._service.initialize()
+        self._initialized = True
+        logger.info("LeadHunter agent backend ready")
+
+    async def shutdown(self) -> None:
+        if self._service:
+            await self._service.shutdown()
+        self._initialized = False
+
+    def is_healthy(self) -> bool:
+        return self._initialized and self._service is not None
+
+    async def stream(
+        self,
+        endpoint_url: str,
+        model: str,
+        messages: List[Dict],
+        *,
+        headers: Optional[Dict] = None,
+        temperature: float = 0.3,
+        max_tokens: int = 4096,
+        prompt_type: Optional[str] = None,
+        max_rounds: int = 20,
+        max_tool_calls: int = 0,
+        context_length: int = 0,
+        active_document=None,
+        session_id: Optional[str] = None,
+        disabled_tools: Optional[Set[str]] = None,
+        owner: Optional[str] = None,
+        relevant_tools: Optional[Set[str]] = None,
+        fallbacks: Optional[List[tuple]] = None,
+        _is_teacher_run: bool = False,
+    ) -> AsyncGenerator[str, None]:
+        """Stream LeadHunter agent responses.
+
+        Delegates to fallback backend but restricts to LeadHunter tools only.
+        """
+        if not self._initialized or not self._service:
+            if self._fallback_backend and self._fallback_backend.is_healthy():
+                lead_tools = {
+                    "discover_producthunt_leads", "discover_beta_leads", "score_leads",
+                    "sync_to_listmonk", "campaign_metrics", "export_leads",
+                }
+                import json as _json
+                yield f'data: {_json.dumps({"delta": "LeadHunter unavailable, using fallback"})}\n\n'
+                async for chunk in self._fallback_backend.stream(
+                    endpoint_url, model, messages,
+                    headers=headers, temperature=temperature,
+                    max_tokens=max_tokens, prompt_type=prompt_type,
+                    max_rounds=max_rounds, max_tool_calls=max_tool_calls,
+                    context_length=context_length, active_document=active_document,
+                    session_id=session_id, disabled_tools=disabled_tools,
+                    owner=owner, relevant_tools=lead_tools if relevant_tools is None else relevant_tools | lead_tools,
+                    fallbacks=fallbacks, _is_teacher_run=_is_teacher_run,
+                ):
+                    yield chunk
+                return
+            import json as _json
+            yield f'data: {_json.dumps({"delta": "LeadHunter agent not initialized"})}\n\n'
+            yield 'data: [DONE]\n\n'
+            return
+
+        lead_tools = {
+            "discover_producthunt_leads", "discover_beta_leads", "score_leads",
+            "sync_to_listmonk", "campaign_metrics", "export_leads",
+        }
+
+        filtered_tools = lead_tools if disabled_tools is None else (disabled_tools - lead_tools)
+
+        from src.agent_loop import stream_agent_loop
+        async for chunk in stream_agent_loop(
+            endpoint_url,
+            model,
+            messages,
+            headers=headers,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            prompt_type=prompt_type,
+            max_rounds=max_rounds,
+            max_tool_calls=max_tool_calls,
+            context_length=context_length,
+            active_document=active_document,
+            session_id=session_id,
+            disabled_tools=filtered_tools,
+            owner=owner,
+            relevant_tools=lead_tools if relevant_tools is None else relevant_tools | lead_tools,
+            fallbacks=fallbacks,
+            _is_teacher_run=_is_teacher_run,
+        ):
+            yield chunk
+
+    def get_info(self) -> Dict:
+        info = super().get_info()
+        if self._service:
+            info["stats"] = self._service.get_stats()
+        return info

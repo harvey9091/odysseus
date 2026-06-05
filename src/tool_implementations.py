@@ -4075,3 +4075,98 @@ async def do_vault_unlock(content: str, owner: Optional[str] = None) -> Dict:
         pass
 
     return {"output": "Vault unlocked. Session saved.", "exit_code": 0}
+
+
+# LeadHunter tool implementations
+async def do_discover_producthunt_leads(content: str, owner: Optional[str] = None) -> Dict:
+    import json as _json
+    args = _parse_tool_args(content)
+    query = args.get("query", "")
+    limit = args.get("limit", 20)
+
+    if not query:
+        return {"error": "discover_producthunt_leads: query required", "exit_code": 1}
+
+    from services.leadhunter import LeadHunterService, get_lead_hunter_service
+    service = get_lead_hunter_service()
+    leads = await service.discover_producthunt_leads(query, limit)
+
+    return {"output": f"Discovered {len(leads)} leads from Product Hunt", "exit_code": 0, "leads": [l.model_dump() for l in leads]}
+
+
+async def do_discover_beta_leads(content: str, owner: Optional[str] = None) -> Dict:
+    import json as _json
+    args = _parse_tool_args(content)
+    query = args.get("query", "")
+    limit = args.get("limit", 20)
+
+    if not query:
+        return {"error": "discover_beta_leads: query required", "exit_code": 1}
+
+    from services.leadhunter import LeadHunterService, get_lead_hunter_service
+    service = get_lead_hunter_service()
+    leads = await service.discover_beta_leads(query, limit)
+
+    return {"output": f"Discovered {len(leads)} beta leads", "exit_code": 0, "leads": [l.model_dump() for l in leads]}
+
+
+async def do_score_leads(content: str, owner: Optional[str] = None) -> Dict:
+    import json as _json
+    args = _parse_tool_args(content)
+    leads = args.get("leads", [])
+    min_score = args.get("min_score", 70)
+
+    if not leads:
+        return {"error": "score_leads: leads array required", "exit_code": 1}
+
+    from services.leadhunter import LeadHunterService, get_lead_hunter_service
+    service = get_lead_hunter_service()
+    scored = service.score_leads(leads, min_score)
+
+    qualified = [l for l in scored if l.get("status") == "qualified"]
+    return {
+        "output": f"Scored {len(leads)} leads: {len(qualified)} qualified (score >= {min_score})",
+        "exit_code": 0,
+        "scored_leads": scored,
+    }
+
+
+async def do_sync_to_listmonk(content: str, owner: Optional[str] = None) -> Dict:
+    import json as _json
+    args = _parse_tool_args(content)
+    lead_ids = args.get("lead_ids")
+
+    from services.leadhunter import LeadHunterService, get_lead_hunter_service
+    service = get_lead_hunter_service()
+    result = await service.sync_to_listmonk(lead_ids)
+
+    return {"output": result.get("message", "Sync completed"), "exit_code": 0, "sync_result": result}
+
+
+async def do_campaign_metrics(content: str, owner: Optional[str] = None) -> Dict:
+    import json as _json
+    args = _parse_tool_args(content)
+    campaign_id = args.get("campaign_id")
+
+    from services.leadhunter import LeadHunterService, get_lead_hunter_service
+    service = get_lead_hunter_service()
+    metrics = await service.campaign_metrics(campaign_id)
+
+    return {
+        "output": f"Campaign metrics: {metrics.emails_sent} sent, {metrics.opens} opens ({metrics.open_rate:.1%}), {metrics.clicks} clicks ({metrics.click_rate:.1%})",
+        "exit_code": 0,
+        "metrics": metrics.model_dump(),
+    }
+
+
+async def do_export_leads(content: str, owner: Optional[str] = None) -> Dict:
+    import json as _json
+    args = _parse_tool_args(content)
+    lead_ids = args.get("lead_ids")
+    format = args.get("format", "csv")
+
+    from services.leadhunter import LeadHunterService, get_lead_hunter_service
+    service = get_lead_hunter_service()
+    data = await service.export_leads(lead_ids, format)
+
+    return {"output": f"Exported leads ({format}):", "exit_code": 0, "data": data}

@@ -172,6 +172,12 @@ _TOOL_NAME_MAP = {
     "notes": "manage_notes",
     "todo": "manage_notes",
     "todos": "manage_notes",
+    "discover_producthunt_leads": "discover_producthunt_leads",
+    "discover_beta_leads": "discover_beta_leads",
+    "score_leads": "score_leads",
+    "sync_to_listmonk": "sync_to_listmonk",
+    "campaign_metrics": "campaign_metrics",
+    "export_leads": "export_leads",
 }
 
 

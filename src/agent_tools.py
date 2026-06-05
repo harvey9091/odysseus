@@ -53,6 +53,9 @@ TOOL_TAGS = {"bash", "python", "web_search", "web_fetch", "read_file", "write_fi
              "search_hf_models", "list_cached_models",
              "list_serve_presets", "serve_preset", "adopt_served_model",
              "list_cookbook_servers",
+             # LeadHunter tools
+             "discover_producthunt_leads", "discover_beta_leads", "score_leads",
+             "sync_to_listmonk", "campaign_metrics", "export_leads",
              # Other tools the agent reaches for that were also missing.
              "edit_image", "trigger_research", "manage_research",
              # Generic loopback to any UI-button endpoint (cookbook,
