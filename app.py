@@ -657,6 +657,10 @@ app.include_router(setup_prefs_routes())
 from routes.backup_routes import setup_backup_routes
 app.include_router(setup_backup_routes(memory_manager, preset_manager, skills_manager))
 
+# Lead Sources (external lead provider abstraction)
+from routes.leads_routes import setup_leads_routes
+app.include_router(setup_leads_routes())
+
 from routes.font_routes import setup_font_routes
 app.include_router(setup_font_routes())
 

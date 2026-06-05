@@ -334,6 +334,14 @@ Odysseus serves as a **personal AI infrastructure layer** — a single self-host
 - `routes.py` (236) — Companion bridge routes
 - `pairing.py` — CSRF-safe pairing token minting
 
+## `/backend/` (Provider Abstraction Layer)
+
+**Purpose:** Pluggable provider interfaces for future external integrations (leads, enrichment, etc.).
+
+### backend/providers/leads/ (3 files)
+- `base_provider.py` — Abstract `LeadProvider` ABC with `fetch_leads()`, `validate_lead()`, `get_provider_name()`, `is_enabled`; `Lead` Pydantic schema
+- `mock_provider.py` — `MockLeadProvider`: deterministic test leads, used by `/api/leads/test`
+
 ## `/scripts/` (CLI Tools)
 
 **Purpose:** Command-line utilities for managing Odysseus subsystems.
