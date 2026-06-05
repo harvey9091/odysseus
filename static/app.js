@@ -38,7 +38,6 @@ import themeModule from './js/theme.js';
 import cookbookModule from './js/cookbook.js';
 import groupModule from './js/group.js';
 import * as researchPanelModule from './js/research/panel.js';
-import * as scraperModule from './js/scraper/panel.js';
 import ttsModule from './js/tts-ai.js';
 import spinnerModule from './js/spinner.js';
 import { initAgentSelector } from './js/agentSelector.js';
@@ -789,14 +788,6 @@ function initializeEventListeners() {
   if (toolResearchBtn) {
     toolResearchBtn.addEventListener('click', () => {
       researchPanelModule.toggle();
-    });
-  }
-
-  // Scraper tool button
-  const toolScraperBtn = el('tool-scraper-btn');
-  if (toolScraperBtn) {
-    toolScraperBtn.addEventListener('click', () => {
-      scraperModule.toggle();
     });
   }
 
@@ -2358,7 +2349,6 @@ function initializeEventListeners() {
     'tool-library':        '#tool-library-btn',
     'tool-memory':         '#tool-memory-btn',
     'tool-notes':          '#tool-notes-btn',
-    'tool-scraper':        '#tool-scraper-btn',
     'tool-tasks':          '#tool-tasks-btn',
     'tool-theme':          '#tool-theme-btn',
     'user-bar':            '#user-bar-profile',
@@ -3462,7 +3452,6 @@ function startOdysseusApp() {
     'rail-tasks':     'tool-tasks-btn',
     'rail-calendar':  'tool-calendar-btn',
     'rail-notes':     'tool-notes-btn',
-    'rail-scraper':   'tool-scraper-btn',
     'rail-memory':    'tool-memory-btn',
     'rail-theme':     'tool-theme-btn',
     'rail-email':     'email-section-title',

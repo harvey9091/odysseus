@@ -198,7 +198,7 @@ def setup_chat_routes() -> APIRouter:
 ```
 Registered in `app.py`: `app.include_router(setup_chat_routes())`
 
-48 route files covering: auth, chat, agent, sessions, documents, research, memory, skills, models, email, calendar, notes, tasks, gallery, cookbook, shell, TTS, STT, search, MCP, webhooks, presets, contacts, compare, signatures, vault, preferences, personal docs, history, diagnostics, cleanup, editor drafts, admin wipe, backup, hwfit, fonts, emoji, assistant.
+47 route files covering: auth, chat, agent, sessions, documents, research, memory, skills, models, email, calendar, notes, tasks, gallery, cookbook, shell, TTS, STT, search, MCP, webhooks, presets, contacts, compare, signatures, vault, preferences, personal docs, history, diagnostics, cleanup, editor drafts, admin wipe, backup, hwfit, fonts, emoji, assistant.
 
 ## SPA FRONTEND STRUCTURE
 

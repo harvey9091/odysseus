@@ -192,7 +192,7 @@ Odysseus serves as a **personal AI infrastructure layer** — a single self-host
 ## `/routes/` (API Layer)
 
 **Purpose:** FastAPI route handlers. Each file is an APIRouter with tagged endpoints.
-**Files:** 48 Python files
+**Files:** 47 Python files
 **Pattern:** Each file exports `setup_*_routes() -> APIRouter`
 
 ### All route files:
@@ -864,7 +864,7 @@ app.py (FastAPI instance)
 │   ├── RequestTimeoutMiddleware (45s default)
 │   └── AuthMiddleware (cookie + bearer + internal)
 ├── Static Files (StaticFiles mount)
-├── Route Modules (48 APIRouter instances)
+├── Route Modules (47 APIRouter instances)
 ├── Startup Event (lifecycle hooks)
 └── Shutdown Event (cleanup hooks)
 ```
@@ -2290,7 +2290,7 @@ User input → preprocess (URLs, YouTube, images)
 ## Architecture Changes from Upstream
 
 The codebase shows signs of significant evolution from a simpler chat application:
-- Original single-file chat app → modular FastAPI with 48 route files
+- Original single-file chat app → modular FastAPI with 47 route files
 - Simple LLM call → multi-provider abstraction with failover
 - No agent capability → full agentic system with 60+ tools
 - No persistence → SQLAlchemy with 20+ tables
@@ -2320,7 +2320,7 @@ docker compose up
     5. Add middleware (CORS, Security, Timeout, Auth)
     6. Mount static files
     7. initialize_managers() → create all component instances
-    8. Register 48 route modules
+    8. Register 47 route modules
     9. Register startup/shutdown event handlers
     10. uvicorn starts listening on port 7000
   → Startup event fires:
