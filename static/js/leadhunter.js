@@ -79,7 +79,10 @@ function _buildPanel() {
 }
 
 function openPanel() {
-    if (_open) return;
+    if (_open) {
+        closePanel();
+        return;
+    }
     _open = true;
     document.getElementById('tool-leadhunter-btn')?.classList.add('active');
     const pane = _buildPanel();
@@ -111,22 +114,7 @@ function closePanel() {
     document.getElementById('leadhunter-pane-backdrop')?.remove();
 }
 
-export function initLeadHunter() {
-    const btn = document.getElementById('tool-leadhunter-btn');
-    if (btn) {
-        btn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            if (_open) {
-                closePanel();
-            } else {
-                openPanel();
-            }
-        });
-    }
-}
-
 function isPanelOpen() { return _open; }
 
-export { openPanel as openLeadHunter, closePanel as closeLeadHunter, isPanelOpen as isLeadHunterOpen };
-
-export default { initLeadHunter };
+export { openPanel, closePanel, isPanelOpen };
+export default { openPanel, closePanel, isPanelOpen };

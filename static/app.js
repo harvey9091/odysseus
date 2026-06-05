@@ -880,6 +880,16 @@ function initializeEventListeners() {
     setInterval(() => notesModule.refreshDueBadge(), 5 * 60 * 1000);
   }
 
+  // LeadHunter tool button
+  const toolLeadHunterBtn = el('tool-leadhunter-btn');
+  if (toolLeadHunterBtn) {
+    toolLeadHunterBtn.addEventListener('click', () => {
+      if (leadhunterModule) {
+        leadhunterModule.openPanel();
+      }
+    });
+  }
+
   // URL-based panel routing — bookmark /calendar, /notes, /cookbook etc
   // and the matching tool opens automatically on page load.
   const urlPath = window.location.pathname;
@@ -999,11 +1009,12 @@ function initializeEventListeners() {
       setTimeout(_goFullscreen, 50);
       setTimeout(_goFullscreen, 200);
     },
-'/memory':   () => document.getElementById('tool-memory-btn')?.click(),
-     '/gallery':  () => document.getElementById('tool-gallery-btn')?.click(),
-     '/tasks':    () => document.getElementById('tool-tasks-btn')?.click(),
-     '/library':  () => sessionModule && sessionModule.openLibrary && sessionModule.openLibrary(),
-   };
+    '/memory':   () => document.getElementById('tool-memory-btn')?.click(),
+    '/gallery':  () => document.getElementById('tool-gallery-btn')?.click(),
+    '/tasks':    () => document.getElementById('tool-tasks-btn')?.click(),
+    '/library':  () => sessionModule && sessionModule.openLibrary && sessionModule.openLibrary(),
+    '/leadhunter': () => leadhunterModule && leadhunterModule.openPanel && leadhunterModule.openPanel(),
+  };
   const _opener = _routeOpen[urlPath];
   // Defer the opener — at this point in init, the modules whose handlers
   // we trigger (#rail-new-session click handler, the email-section header
