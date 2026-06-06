@@ -9,7 +9,7 @@ import { makeWindowDraggable } from './windowDrag.js';
 
 const API_BASE = window.location.origin;
 let _open = false;
-let _stats = { total_leads: 0, qualified_leads: 0, synced_leads: 0, emails_sent: 0, opens: 0, clicks: 0 };
+let _stats = { total_leads: 0, qualified_leads: 0, enriched_leads: 0, synced_leads: 0, emails_sent: 0, opens: 0, clicks: 0, ctr: 0 };
 let _leads = [];
 let _modal = null;
 let _backdrop = null;
@@ -31,10 +31,17 @@ function _render() {
             <div class="leadhunter-stats">
                 <div class="stat-item"><span class="stat-value">${_stats.total_leads}</span><span class="stat-label">Total Leads</span></div>
                 <div class="stat-item"><span class="stat-value">${_stats.qualified_leads}</span><span class="stat-label">Qualified</span></div>
+                <div class="stat-item"><span class="stat-value">${_stats.enriched_leads}</span><span class="stat-label">Enriched</span></div>
                 <div class="stat-item"><span class="stat-value">${_stats.synced_leads}</span><span class="stat-label">Synced</span></div>
+            </div>
+        </div>
+        <div class="leadhunter-campaign">
+            <h4>Campaign Metrics</h4>
+            <div class="leadhunter-stats">
                 <div class="stat-item"><span class="stat-value">${_stats.emails_sent}</span><span class="stat-label">Sent</span></div>
                 <div class="stat-item"><span class="stat-value">${_stats.opens}</span><span class="stat-label">Opens</span></div>
                 <div class="stat-item"><span class="stat-value">${_stats.clicks}</span><span class="stat-label">Clicks</span></div>
+                <div class="stat-item"><span class="stat-value">${_stats.ctr}</span><span class="stat-label">CTR</span></div>
             </div>
         </div>
     `;
@@ -42,12 +49,28 @@ function _render() {
 
 async function _fetchStats() {
     try {
-        const res = await fetch(`${API_BASE}/api/leadhunter/stats`, { credentials: 'same-origin' });
-        if (res.ok) {
-            const data = await res.json();
-            _stats = data;
-            _render();
-        }
+        const [statsRes, metricsRes] = await Promise.all([
+            fetch(`${API_BASE}/api/leadhunter/stats`, { credentials: 'same-origin' }),
+            fetch(`${API_BASE}/api/leadhunter/metrics`, {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            })
+        ]);
+        const stats = statsRes.ok ? await statsRes.json() : {};
+        const metrics = metricsRes.ok ? await metricsRes.json() : {};
+        _stats = {
+            total_leads: stats.total_leads || 0,
+            qualified_leads: stats.qualified_leads || 0,
+            enriched_leads: stats.enriched_leads || 0,
+            synced_leads: stats.synced_leads || 0,
+            emails_sent: metrics.metrics?.emails_sent || 0,
+            opens: metrics.metrics?.opens || 0,
+            clicks: metrics.metrics?.clicks || 0,
+            ctr: metrics.metrics?.open_rate || 0
+        };
+        _render();
     } catch (e) {
         console.error('LeadHunter: failed to fetch stats', e);
     }
@@ -71,7 +94,7 @@ function _buildPanel() {
     document.body.appendChild(backdrop);
     document.body.appendChild(pane);
 
-    makeWindowDraggable(pane, pane.querySelector('.modal-header') || pane);
+    makeWindowDraggable(pane, pane);
     _modal = pane;
     _backdrop = backdrop;
 

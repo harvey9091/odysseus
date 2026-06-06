@@ -351,11 +351,12 @@ class LeadHunterBackend(AgentBackend):
         self._fallback_backend = backend
 
     async def initialize(self) -> None:
+        logger.info("LeadHunter initializing")
         from services.leadhunter import get_lead_hunter_service
         self._service = get_lead_hunter_service()
         await self._service.initialize()
         self._initialized = True
-        logger.info("LeadHunter agent backend ready")
+        logger.info("LeadHunter initialized and healthy")
 
     async def shutdown(self) -> None:
         if self._service:

@@ -1,6 +1,7 @@
 """LeadHunter routes — /api/leadhunter/*"""
 
 import logging
+import os
 from typing import Optional
 
 from fastapi import APIRouter, HTTPException, Request
@@ -33,6 +34,10 @@ def setup_leadhunter_routes() -> APIRouter:
     class ExportRequest(BaseModel):
         lead_ids: Optional[list] = None
         format: Optional[str] = "csv"
+
+    class CampaignCreate(BaseModel):
+        name: str
+        description: Optional[str] = None
 
     @router.post("/api/leadhunter/discover/producthunt")
     async def discover_producthunt(body: LeadQuery, request: Request):
@@ -82,10 +87,45 @@ def setup_leadhunter_routes() -> APIRouter:
         get_current_user(request)
         return service.get_stats()
 
+    @router.get("/api/leadhunter/health")
+    async def health_check(request: Request):
+        """Health check for LeadHunter service."""
+        get_current_user(request)
+        health = {
+            "database": "ok" if service._repository else "error",
+            "service": "ok" if service._initialized else "error",
+        }
+        listmonk_url = os.getenv("LISTMONK_URL", "")
+        if listmonk_url:
+            try:
+                import httpx
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    resp = await client.get(f"{listmonk_url.rstrip('/')}/api/v1/status")
+                    health["listmonk"] = "ok" if resp.status_code == 200 else "error"
+            except Exception:
+                health["listmonk"] = "unreachable"
+        else:
+            health["listmonk"] = "not_configured"
+        return health
+
     @router.get("/api/leadhunter/leads")
     async def list_leads(request: Request, status: Optional[str] = None, limit: int = 50):
         """List leads, optionally filtered by status."""
         get_current_user(request)
         return {"leads": service.get_leads(status, limit)}
+
+    @router.post("/api/leadhunter/campaigns")
+    async def create_campaign(body: CampaignCreate, request: Request):
+        """Create a new campaign."""
+        get_current_user(request)
+        campaign = service._repository.create_campaign(body.name, body.description)
+        return {"campaign": {"id": campaign.id, "name": campaign.name, "description": campaign.description}}
+
+    @router.get("/api/leadhunter/campaigns")
+    async def list_campaigns(request: Request, limit: int = 50):
+        """List all campaigns."""
+        get_current_user(request)
+        campaigns = service._repository.get_campaigns(limit)
+        return {"campaigns": [{"id": c.id, "name": c.name, "description": c.description} for c in campaigns]}
 
     return router
