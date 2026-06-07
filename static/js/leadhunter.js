@@ -13,8 +13,8 @@
  *           └── [tabbed content]
  */
 
-import themeModule from '../theme.js';
-import spinnerModule from '../spinner.js';
+import themeModule from './theme.js';
+import spinnerModule from './spinner.js';
 
 let _open = false;
 let _onDocKeydown = null;
