@@ -529,3 +529,5 @@ function _esc(s) {
 }
 
 export function isOpen() { return _open; }
+
+export default { toggle, openPanel, closePanel, isOpen };
