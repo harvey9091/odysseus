@@ -25,7 +25,10 @@ from src.integrations import (
     get_integration,
     mask_integration_secret,
     execute_api_call,
+    execute_integration_action,
+    get_integration_tools,
     INTEGRATION_PRESETS,
+    INTEGRATION_CATEGORIES,
     migrate_from_settings,
 )
 
@@ -544,19 +547,48 @@ def setup_auth_routes(auth_manager: AuthManager) -> APIRouter:
                     hint = " If this is Docker Compose ntfy, set NTFY_BIND to that host/Tailscale IP and NTFY_BASE_URL to the same server URL in .env, then recreate ntfy."
                 return {"ok": False, "message": f"ntfy publish to {full_url} failed: {e}.{hint}"[:500]}
 
-        # All other presets: GET against a known health endpoint.
-        # Fall back to detecting from name if preset is missing.
-        health_paths = {
-            "miniflux": "/v1/me",
-            "gitea": "/api/v1/version",
-            "linkding": "/api/tags/",
-            "homeassistant": "/api/",
-            "home assistant": "/api/",
-        }
-        path = health_paths.get(preset, "/")
-        result = await execute_api_call(integration_id, "GET", path)
+        # Support preset-authored query-string health endpoints cleanly.
+        endpoint = (integ.get("test_endpoint") or "/").strip()
+        params = None
+        if "?" in endpoint:
+            endpoint, qs = endpoint.split("?", 1)
+            from urllib.parse import parse_qsl
+            params = dict(parse_qsl(qs))
+
+        try:
+            result = await execute_api_call(integration_id, "GET", endpoint, params=params)
+        except Exception as exc:
+            return {"ok": False, "message": f"Test failed: {exc}"}
         if result.get("exit_code", 1) == 0:
             return {"ok": True, "message": "Connection successful"}
         return {"ok": False, "message": (result.get("error") or "Connection failed")[:300]}
 
-    return router
+    @router.post("/integrations/{integration_id}/actions/{action_name}")
+    async def run_integration_action(integration_id: str, action_name: str, request: Request):
+        """Run a preset-defined action for an integration."""
+        user = _get_current_user(request)
+        if not user or not auth_manager.is_admin(user):
+            raise HTTPException(403, "Admin only")
+        body = await request.json() or {}
+        result = await execute_integration_action(integration_id, action_name, body.get("args"))
+        if result.get("exit_code", 1) != 0:
+            raise HTTPException(400, result.get("error", "Action failed"))
+        return {"ok": True, "result": result}
+
+    @router.get("/integrations/tools")
+    async def list_integration_tools(request: Request):
+        """Return dynamic agent tool definitions from enabled integrations."""
+        user = _get_current_user(request)
+        if not user or not auth_manager.is_admin(user):
+            raise HTTPException(403, "Admin only")
+        return {"tools": get_integration_tools()}
+
+    @router.get("/integrations/presets")
+    async def list_presets():
+        """List available integration presets."""
+        return {"presets": {k: {kk: vv for kk, vv in v.items() if kk != "api_key"} for k, v in INTEGRATION_PRESETS.items()}}
+
+    @router.get("/integrations/presets/categories")
+    async def list_preset_categories():
+        """Return category metadata for grouping integrations in the UI."""
+        return {"categories": INTEGRATION_CATEGORIES}

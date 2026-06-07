@@ -3078,6 +3078,19 @@ const INTG_TYPES = {
   vault:   { label: 'Vault',   icon: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' },
 };
 
+function renderPresetFormFields(preset) {
+  const fields = [
+    ...(preset.required_fields || []).map(name => ({ name, required: true })),
+    ...(preset.optional_fields || []).map(name => ({ name, required: false })),
+  ];
+  if (!fields.length) return '';
+  return fields.map(f => {
+    const label = f.name.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    const placeholder = f.required ? `${label} (required)` : `${label} (optional)`;
+    return `<div class="settings-row"><label class="settings-label">${label}</label><input class="settings-input preset-field" data-field="${f.name}" placeholder="${placeholder}"></div>`;
+  }).join('');
+}
+
 let _unifiedInited = false;
 
 async function initUnifiedIntegrations() {
@@ -3087,11 +3100,43 @@ async function initUnifiedIntegrations() {
   const listEl = el('unified-integrations-list');
   const formEl = el('unified-intg-form');
   const addBtn = el('unified-intg-add-btn');
+  const dashboardEl = el('intg-dashboard');
+  const searchEl = el('intg-search');
   if (!listEl) return;
   let integrationNotice = '';
 
   function _openEmailSettings() {
     open('email');
+  }
+
+  try {
+    const catRes = await fetch('/api/auth/integrations/presets/categories', { credentials: 'same-origin' });
+    if (catRes.ok) {
+      const catData = await catRes.json();
+      _intgCategories = catData.categories || {};
+    }
+  } catch (_) {}
+
+  function renderDashboard(items) {
+    if (!dashboardEl) return;
+    const total = items.length;
+    const enabled = items.filter(i => i.enabled !== false).length;
+    const lastTested = items
+      .map(i => i.data?.last_tested ? new Date(i.data.last_tested).getTime() : 0)
+      .filter(Boolean)
+      .sort((a, b) => b - a)[0];
+    let lastLabel = 'Never tested';
+    if (lastTested) {
+      const diff = Date.now() - lastTested;
+      if (diff < 60000) lastLabel = 'Just now';
+      else if (diff < 3600000) lastLabel = `${Math.floor(diff / 60000)}m ago`;
+      else lastLabel = `${Math.floor(diff / 3600000)}h ago`;
+    }
+    dashboardEl.innerHTML = [
+      `<div class="admin-card" style="padding:8px 10px"><div style="font-size:10px;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px">Total</div><div style="font-size:18px;font-weight:600">${total}</div></div>`,
+      `<div class="admin-card" style="padding:8px 10px"><div style="font-size:10px;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px">Enabled</div><div style="font-size:18px;font-weight:600;color:var(--green,#50fa7b)">${enabled}</div></div>`,
+      `<div class="admin-card" style="padding:8px 10px"><div style="font-size:10px;opacity:0.6;text-transform:uppercase;letter-spacing:0.5px">Last test</div><div style="font-size:11px;font-weight:600;margin-top:4px">${lastLabel}</div></div>`,
+    ].join('');
   }
 
   async function fetchAll() {
@@ -3274,6 +3319,7 @@ async function initUnifiedIntegrations() {
           <div class="settings-row" id="uf-api-header-row"><label class="settings-label">Header${_apiHint('The HTTP header name the key goes under (Miniflux: X-Auth-Token; most others: Authorization). Only used when Auth = Header.')}</label><input id="uf-api-header" class="settings-input" placeholder="X-Auth-Token"></div>
           <div class="settings-row"><label class="settings-label">API Key${_apiHint('The secret token the service issued you (generated in its admin panel / settings). Used to prove your identity on each request. Required for any Auth mode except None.')}</label><input id="uf-api-key" class="settings-input" type="password" placeholder="Token/key"></div>
           <div class="settings-row" style="margin-top:4px"><button class="admin-btn-sm" id="uf-api-save">Save</button><button class="admin-btn-sm" id="uf-api-test" style="opacity:0.7">Test</button><button class="admin-btn-sm" id="uf-api-cancel" style="opacity:0.7">Cancel</button><span id="uf-api-msg" style="font-size:11px"></span></div>
+          <div id="uf-preset-fields"></div>
         </div>
       </div>`;
     const preset = el('uf-api-preset'), name = el('uf-api-name'), url = el('uf-api-url'), auth = el('uf-api-auth'), header = el('uf-api-header'), key = el('uf-api-key'), ntfyHint = el('uf-api-ntfy-hint');
@@ -3301,10 +3347,18 @@ async function initUnifiedIntegrations() {
       if (url) {
         url.placeholder = isNtfy ? 'http://127.0.0.1:8091' : 'http://localhost:8080';
       }
-      if (!p) return;
+      const presetFieldsEl = el('uf-preset-fields');
+      if (!p) { if (presetFieldsEl) presetFieldsEl.innerHTML = ''; return; }
       name.value = p.name || '';
       auth.value = p.auth_type || 'none';
       header.value = p.auth_header || '';
+      if (presetFieldsEl) presetFieldsEl.innerHTML = renderPresetFormFields(p);
+      const existing = presetDetails && presetDetails.preset === preset.value ? presetDetails : {};
+      const allFields = [...(p.required_fields || []), ...(p.optional_fields || [])];
+      presetFieldsEl?.querySelectorAll('.preset-field').forEach(input => {
+        const field = input.dataset.field;
+        input.value = allFields.includes(field) ? (existing[field] ?? '') : (input.value || '');
+      });
     };
     preset.addEventListener('change', _applyPreset);
     _applyPreset();
